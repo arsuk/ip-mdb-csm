@@ -1,0 +1,1 @@
+cp target/ip-mdb-csm-1.0.artemis.war /opt/wildfly/standalone/deployments/ip-csm-1.0.war

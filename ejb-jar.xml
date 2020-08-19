@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ejb-jar
+        xmlns="http://java.sun.com/xml/ns/javaee"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/ejb-jar_3_0.xsd"
+        version="3.0">
+    <description>JBoss IP CSM MDB</description>
+    <display-name>JBoss IP CSM MDB</display-name>
+    <enterprise-beans>
+        <message-driven>
+            <ejb-name>CSMBeneficiaryBean</ejb-name>
+            <ejb-class>ipcsmdemo.CSMBeneficiaryBean</ejb-class>
+            <transaction-type>Container</transaction-type>
+            <message-destination-type>javax.jms.Queue</message-destination-type>
+            <activation-config>
+                <activation-config-property>
+                    <activation-config-property-name>maxSessions</activation-config-property-name>
+                    <activation-config-property-value>32</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>destinationType</activation-config-property-name>
+                    <activation-config-property-value>javax.jms.Queue</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>destination</activation-config-property-name>
+                    <activation-config-property-value>csm_anadolu_beneficiary_payment_response
+                    </activation-config-property-value>
+                </activation-config-property>
+            </activation-config>
+        </message-driven>
+        <message-driven>
+            <ejb-name>CSMOriginatorBean</ejb-name>
+            <ejb-class>ipcsmdemo.CSMOriginatorBean</ejb-class>
+            <transaction-type>Container</transaction-type>
+            <message-destination-type>javax.jms.Queue</message-destination-type>
+            <activation-config>
+
+                <activation-config-property>
+                    <activation-config-property-name>maxSessions</activation-config-property-name>
+                    <activation-config-property-value>32</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>destinationType</activation-config-property-name>
+                    <activation-config-property-value>javax.jms.Queue</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>destination</activation-config-property-name>
+                    <activation-config-property-value>csm_anadolu_originator_payment_request
+                    </activation-config-property-value>
+                </activation-config-property>
+            </activation-config>
+        </message-driven>
+
+        <message-driven>
+            <ejb-name>CSMEchoResponseBean</ejb-name>
+            <ejb-class>ipcsmdemo.CSMEchoResponseBean</ejb-class>
+            <transaction-type>Container</transaction-type>
+            <message-destination-type>javax.jms.Queue</message-destination-type>
+            <activation-config>
+
+                <activation-config-property>
+                    <activation-config-property-name>maxSessions</activation-config-property-name>
+                    <activation-config-property-value>1</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>destinationType</activation-config-property-name>
+                    <activation-config-property-value>javax.jms.Queue</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>destination</activation-config-property-name>
+                    <activation-config-property-value>csm_anadolu_echo_response
+                    </activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>transactionTimeout</activation-config-property-name>
+                    <activation-config-property-value>600000</activation-config-property-value>
+                </activation-config-property>
+            </activation-config>
+        </message-driven>
+
+    </enterprise-beans>
+</ejb-jar>
