@@ -1,5 +1,6 @@
 package ipcsmdemo;
 
+import org.apache.activemq.ScheduledMessage;
 import org.apache.activemq.jms.pool.PooledConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,9 +148,10 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
             	logger.error("Illegal message - no TxId,GrpSts, AccptncDtTm, IntrBkSttlmAmt, DbtrAgt BIC or InstgAgt BIC");
             	return;
             }
-            float value=0;
+            long value=0;	// Euro cents
             try {
-            	value=Float.parseFloat(valueStr);
+            	float fvalue=Float.parseFloat(valueStr);	// Could do a format check here
+            	value=(long) (fvalue*100);	// Convert to Euro cents and ignore fractions (not allowed with SEPA)
             } catch (RuntimeException e) {
             	status="RJCT";
             	reason="FF01";
@@ -203,9 +205,28 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
         	
         	// If not rejected start timer
         	if (status.equals("")){
-                dbSessionBean.insertTimer(txid,origTime,debtorBIC,tm.getText());        		
+                //dbSessionBean.insertTimer(txid,origTime,debtorBIC,tm.getText());
+    	        QueueConnection conn = qcf.createQueueConnection();
+    	        conn.start();
+    	        
+       			QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
+    			Queue timeoutDest;
+    			try {
+    				timeoutDest=(Queue)ic.lookup("CSMTimeoutQueue"); // Lookup JNDI name
+    			} catch (NamingException e) {
+    				timeoutDest=session.createQueue("instantpayments_csm_timeout");	// Use timer MDB default queue name 
+    			}
+        		QueueSender sender = session.createSender(timeoutDest);
+                TextMessage sendmsg=session.createTextMessage(tm.getText());
+                sendmsg.setStringProperty("TXID",txid);
+                sendmsg.setStringProperty("DEBTORBIC",debtorBIC);
+                sendmsg.setLongProperty(ScheduledMessage.AMQ_SCHEDULED_DELAY, SEVENSECS);
+            	sender.send(sendmsg);
+            	sender.close();
+    			session.close();
+    			conn.close();	// Return connection to the pool
         	}
-            // Get a pooled connection
+            // Get a pooled connection and forward to beneficiary or reject to originator
             QueueConnection conn = qcf.createQueueConnection();
             conn.start();
             QueueSession session = conn.createQueueSession(false,

@@ -43,7 +43,7 @@ public class CSMStatusServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
 
-    	DecimalFormat df = new DecimalFormat("#.##");
+    	DecimalFormat df = new DecimalFormat("#0.00");
     	String id=req.getParameter("bic");
     	if (id==null || id.isEmpty()) id="%";
     	
@@ -52,7 +52,9 @@ public class CSMStatusServlet extends HttpServlet {
     	BankStatus banks[]=dbSessionBean.getStatus(id);
     	
     	for (int i=0;i<banks.length;i++) {
-    		data=data+banks[i].bic+" "+df.format(banks[i].liquidity)+" "+banks[i].lastecho+" "+"\n";
+    		data=data+"BIC "+banks[i].bic+
+    					",  Liquidity "+df.format(banks[i].liquidity/100.0)+	// Convert from cents to euro for display
+    					",  Last echo "+banks[i].lastecho+" "+"\n";
     	}
 
     	PrintWriter writer=res.getWriter();

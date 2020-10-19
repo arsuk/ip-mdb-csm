@@ -146,8 +146,7 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             	logger.error("Illegal message - no txid - message dropped");
             	return;           	
             }
-            else
-               	dbSessionBean.deleteTimer(txid);
+
             String debtorBIC=XMLutils.getElementValue(XMLutils.getElement(doc,"DbtrAgt"),"BIC");
             String status=XMLutils.getElementValue(doc,"GrpSts");
             String acceptanceTime=XMLutils.getElementValue(doc,"AccptncDtTm");
@@ -164,7 +163,7 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
            	String confirmationReason="";
            	
             Context ic = new InitialContext();
-            Queue confirmationDest = confirmationDest = lookupQueue(ic,"CSMBeneficiaryConfirmationQueue"+creditorBIC);
+            Queue confirmationDest = lookupQueue(ic,"CSMBeneficiaryConfirmationQueue"+creditorBIC);
             if (confirmationDest==null)  {
     			logger.error("Lookup error creditor "+creditorBIC);
     			return;
@@ -177,26 +176,33 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
 
            	// Insert response record (will fail if it is a duplicate or DB error)
             if (!dbSessionBean.txInsert(id,txid,CSMDBSessionBean.responseRecordType,tm.getText())) {
-            	// Rollback on exceptions
+            	// Rollback on DB exceptions (already logged)
             	if (dbSessionBean.lastException!=null) {
             		ctx.setRollbackOnly();
             		return;
             	}
-            	// Check what we should do with duplicates
+            	// Check what we should do with the duplicate - get the status
             	TXstatus duplicateStatus=dbSessionBean.getTXstatus(txid,CSMDBSessionBean.responseRecordType);
+
             	if (duplicateStatus==null) {
+            		logger.error("Duplicate detected but cannot get status "+txid);
             		status="RJCT";
-            		reason="FF01";
-            	} else if (reason.equals("AB06") && (duplicateStatus.reason.equals("")||duplicateStatus.reason.equals("AB06"))) {
-            		return; // Ignore late timer generated message
+            		confirmationReason="FF01";	// Send confirmation reject but no response
             	} else if (reason.equals("") && duplicateStatus.reason.equals("AB06")) {
             		status="RJCT";
-            		confirmationReason="TM01";	// Valid response but already timed out - send confirmation reject
-            	} else {               	
-	            	logger.warn("Already responded JMS ID {} TXID {}",id,txid);
+            		confirmationReason="TM01";	// Valid response but already timed out - send confirmation reject but no response
+	            	logger.trace("Already timed out - reject to conf queue- JMS ID {} TXID {} reason {} duplicate reason {}",id,txid,reason,duplicateStatus.reason);
+            	} else if (duplicateStatus.reason.equals("AB06")) {
+            		// Timed out already and error message back from beneficiary - just drop
+	            	logger.trace("Already timed out - error, so ignore - JMS ID {} TXID {} reason {} duplicate reason {}",id,txid,reason,duplicateStatus.reason);
+	            	return;
+            	} else {
+            		// This should not happen
+	            	logger.warn("Already responded JMS ID {} TXID {} reason {} duplicate reason {}",id,txid,reason,duplicateStatus.reason);
 	            	return;
             	}
             }
+           	
             // Update message ID time so we can forward the message
             XMLutils.setElementValue(doc,"MsgId",hashCode()+"-"+System.nanoTime());
 
@@ -214,17 +220,10 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             	logger.error("Bad AccptncDtTm "+acceptanceTime+" "+txid);
             	return;
             }
-            if (status.equals("ACCP")) {
-	            // Check timeout
-	        	long diff=new Date().getTime()-origTime.getTime();
-	        	logger.debug("Acceptance time {}",origTime);
-	        	if (diff>SEVENSECS) {
-	        		status="RJCT";
-	        		reason="AB06";
-	        	}
-            }
+
             TXstatus originalStatus=dbSessionBean.getTXstatus(txid, CSMDBSessionBean.requestRecordType);
             if (originalStatus==null) {
+            	logger.error("Original request message missing "+txid);
         		status="RJCT";
         		confirmationReason="FF01";
             }
@@ -237,7 +236,7 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             } else if (confirmationReason.isEmpty()) {
             	// Reverse liquidity debit with a credit to the debtor liquidity.
         		if (!dbSessionBean.updateLiquidity(debtorBIC, originalStatus.value)) {
-        			logger.warn("Could not update liqidity {} for transaction {} with value {}",creditorBIC,txid,originalStatus.value);
+        			logger.warn("Could not update liqidity {} for transaction {} with value {}",debtorBIC,txid,originalStatus.value);
         		}
         	}
             TextMessage sendmsg;
@@ -266,15 +265,16 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             }
             session.close();
             conn.close();	// Return connection to the pool
-            if (!confirmationReason.isEmpty()) reason=confirmationReason;
+
+            if (!confirmationReason.isEmpty()) reason=confirmationReason;	// Log new reason - original reason in message
            	logger.trace("TX status {} {} {}",txid,status,reason);
-           	float value=0;
+       		long value=0;
            	if (originalStatus!=null) value=originalStatus.value;
            	dbSessionBean.txStatusUpdate(txid,status,reason,origTime,value,CSMDBSessionBean.responseRecordType);
         	if (dbSessionBean.lastException!=null) {
         		ctx.setRollbackOnly();
         		return;
-        	}
+           	}
         } catch(JMSException e) {
             throw new EJBException(e);
         } catch (NamingException e) {
