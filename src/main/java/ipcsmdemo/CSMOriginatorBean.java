@@ -12,6 +12,7 @@ import javax.ejb.EJBException;
 import javax.ejb.MessageDriven;
 import javax.ejb.MessageDrivenBean;
 import javax.ejb.MessageDrivenContext;
+import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
@@ -53,6 +54,8 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
     private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
     
 	private MessageUtils messageUtils;
+	
+	private String myBIC=null;
     
 	SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");	// 2018-12-28T15:25:40.264
 	
@@ -169,6 +172,27 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
     			logger.error("Lookup error debtor "+debtorBIC);
     			return;	// Stop because we cannot reply (no queue)
     		}
+
+            // Check that this queue belongs to the originator BIC
+        	Destination incomingDestination=msg.getJMSDestination();
+        	// First find our BIC using the name in the MDB queue we are serving - only need to do this once
+            if (myBIC==null) {
+            	BankStatus[] bankStatus=dbSessionBean.getStatus("%");
+
+            	for (int i=0;i<bankStatus.length;i++) {
+            		if (incomingDestination.toString().contains(bankStatus[i].name)) {
+            			myBIC=bankStatus[i].bic;
+            			break;
+            		}
+            	}
+            	if (myBIC==null) {
+            		logger.warn("Missing debtor BIC "+debtorBIC+" in CSM status table");
+        		}            		
+            }
+            // Check if BICs match - if not log a warning - should not happen in real life but OK in test
+           	if (myBIC!=null && !myBIC.equals(debtorBIC)) {
+    			logger.warn("BIC "+debtorBIC+" does not match "+myBIC+" of "+incomingDestination);      		
+        	}
             
             if (!dbSessionBean.txInsert(id,txid,CSMDBSessionBean.requestRecordType,tm.getText())) {
             	if (dbSessionBean.lastException!=null) {

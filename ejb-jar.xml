@@ -7,15 +7,20 @@
     <description>JBoss IP CSM MDB</description>
     <display-name>JBoss IP CSM MDB</display-name>
     <enterprise-beans>
+        <!--
+            Example ejb-jar.xml - MDB queue names CSM
+            Changes the input queue names of the MDBs matching ejb-name for the bank we want the CSM to support.
+        --> 
         <message-driven>
             <ejb-name>CSMBeneficiaryBean</ejb-name>
             <ejb-class>ipcsmdemo.CSMBeneficiaryBean</ejb-class>
             <transaction-type>Container</transaction-type>
             <message-destination-type>javax.jms.Queue</message-destination-type>
             <activation-config>
+               <!-- Two spellings, maxSessions the for ActiveMQ resource adapter and maxSession for Artemis -->
                 <activation-config-property>
                     <activation-config-property-name>maxSessions</activation-config-property-name>
-                    <activation-config-property-value>32</activation-config-property-value>
+                    <activation-config-property-value>24</activation-config-property-value>
                 </activation-config-property>
                 <activation-config-property>
                     <activation-config-property-name>destinationType</activation-config-property-name>
@@ -34,10 +39,10 @@
             <transaction-type>Container</transaction-type>
             <message-destination-type>javax.jms.Queue</message-destination-type>
             <activation-config>
-
+                <!-- Two spellings, maxSessions the for ActiveMQ resource adapter and maxSession for Artemis -->
                 <activation-config-property>
                     <activation-config-property-name>maxSessions</activation-config-property-name>
-                    <activation-config-property-value>32</activation-config-property-value>
+                    <activation-config-property-value>24</activation-config-property-value>
                 </activation-config-property>
                 <activation-config-property>
                     <activation-config-property-name>destinationType</activation-config-property-name>
@@ -57,9 +62,13 @@
             <transaction-type>Container</transaction-type>
             <message-destination-type>javax.jms.Queue</message-destination-type>
             <activation-config>
-
+                <!-- Two spellings, maxSessions the for ActiveMQ resource adapter and maxSession for Artemis -->
                 <activation-config-property>
                     <activation-config-property-name>maxSessions</activation-config-property-name>
+                    <activation-config-property-value>1</activation-config-property-value>
+                </activation-config-property>
+                <activation-config-property>
+                    <activation-config-property-name>maxSession</activation-config-property-name>
                     <activation-config-property-value>1</activation-config-property-value>
                 </activation-config-property>
                 <activation-config-property>

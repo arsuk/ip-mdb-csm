@@ -82,7 +82,7 @@ public class CSMDBSessionBean  {
 			try {
 				con = ds.getConnection();
 				st = con.createStatement();
-				String sql= "SELECT * FROM CSMSTATUS WHERE BIC LIKE '"+bic+"'";
+				String sql= "SELECT * FROM CSMSTATUS WHERE BIC LIKE '"+bic+"' ORDER BY BIC";
 				ResultSet rs = st.executeQuery(sql);
 		        java.util.ArrayList<BankStatus> dataList =
                         new java.util.ArrayList<BankStatus>();
@@ -90,6 +90,7 @@ public class CSMDBSessionBean  {
 				while (rs.next()) {
 					BankStatus row = new BankStatus();
 					row.bic=rs.getString("BIC");
+					row.name=rs.getString("NAME");
 					row.lastecho=rs.getString("LASTECHO");
 					row.liquidity=rs.getLong("LIQUIDITY");
 					dataList.add(row);
@@ -821,12 +822,13 @@ public class CSMDBSessionBean  {
 	        	stmt = con.createStatement();
 	        	String sql = "CREATE TABLE CSMSTATUS " +
 	                         "(bic VARCHAR(8), " +
+	                         " name VARCHAR(255)," +
 	                         " liquidity BIGINT, " + // Euro cents
 	                         " lastecho DATETIME, " +  
 	                         " PRIMARY KEY ( bic ))"; 
 	            stmt.executeUpdate(sql);
-	            stmt.executeUpdate("INSERT INTO CSMSTATUS (bic,liquidity,lastecho) VALUES ('ANDLNL2A',1000000000,NOW())");
-	            stmt.executeUpdate("INSERT INTO CSMSTATUS (bic,liquidity,lastecho) VALUES ('MYBKNL2A',1000000000,NOW())");
+	            stmt.executeUpdate("INSERT INTO CSMSTATUS (bic,name,liquidity,lastecho) VALUES ('ANDLNL2A','anadolu',1000000000,NOW())");
+	            stmt.executeUpdate("INSERT INTO CSMSTATUS (bic,name,liquidity,lastecho) VALUES ('MYBKNL2A','mybank',1000000000,NOW())");
 	            stmt.close();
 	        	logger.info("Initialized - csmstatus created.");
         	}catch (SQLException e) {
@@ -838,7 +840,7 @@ public class CSMDBSessionBean  {
             	if (stmt!=null) stmt.close();
         	}
 
-        	try {	// Create liquidity change table - liquidity updates 
+        	try {	// Create liquidity change table - liquidity updates - not used if cache used instead
 	        	stmt = con.createStatement();
 	        	String sql = "CREATE TABLE CSMLIQUIDITY " +
 	                         "(bic VARCHAR(8), " +
@@ -915,4 +917,5 @@ class BankStatus {
 	String bic;
 	long liquidity;
 	String lastecho;
+	String name;
 }
