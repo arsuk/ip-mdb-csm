@@ -244,7 +244,8 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
                 TextMessage sendmsg=session.createTextMessage(tm.getText());
                 sendmsg.setStringProperty("TXID",txid);
                 sendmsg.setStringProperty("DEBTORBIC",debtorBIC);
-                sendmsg.setLongProperty(ScheduledMessage.AMQ_SCHEDULED_DELAY, SEVENSECS);
+                sendmsg.setLongProperty(ScheduledMessage.AMQ_SCHEDULED_DELAY, SEVENSECS);	//	Activemq
+                sendmsg.setLongProperty("_AMQ_SCHED_DELIVERY", System.currentTimeMillis() + SEVENSECS);	//Artemis
             	sender.send(sendmsg);
             	sender.close();
     			session.close();
