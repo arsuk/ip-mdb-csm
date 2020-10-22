@@ -52,7 +52,7 @@ public class CSMStatusServlet extends HttpServlet {
     	BankStatus banks[]=dbSessionBean.getStatus(id);
     	
     	for (int i=0;i<banks.length;i++) {
-    		data=data+"BIC "+banks[i].bic+
+    		data=data+"BIC "+banks[i].bic+", "+banks[i].name+
     					",  Liquidity "+df.format(banks[i].liquidity/100.0)+	// Convert from cents to euro for display
     					",  Last echo "+banks[i].lastecho+" "+"\n";
     	}
