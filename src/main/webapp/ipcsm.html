@@ -5,6 +5,7 @@
 <title>IP CSM Simulator status form</title>
 
 <script type="text/javascript">
+var started=false;
 function OnSubmitForm()
 {
     var ifrm = document.getElementById('ifrm');
@@ -14,11 +15,22 @@ function OnSubmitForm()
     ifrm.document.close();
     var action='status?bic='+encodeURIComponent(document.getElementById("BIC").value);
 	document.myform.action = action;
+	started=true;
+}
+window.onload=function(){ 
+    var interval = setInterval(function() {
+            redirect();
+    }, 10000);
+};
+function redirect() {
+    if (started) {
+        document.myform.submit();
+    }
 }
 </script>
 </head>
 <body>
-<a id="logo" href="http://www.equensWorldline.com"><img alt="equensWorldline" height="50" width="300" src="equens.gif" /></a>
+<a id="logo" href="http://www.equensWorldline.com"><img alt="equensWorldline" height="30" width="240" src="equens.gif" /></a>
 <br/>
 <br/>
 <b>This is the IP CSM Simulation environment</b><br/>

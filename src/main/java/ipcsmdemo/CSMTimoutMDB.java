@@ -142,13 +142,18 @@ public class CSMTimoutMDB implements MessageDrivenBean, MessageListener
            	// If we can create the response record we can send the timeout message to the originator and reverse the liquidity change 
             if (dbSessionBean.txInsert(id,txid,CSMDBSessionBean.responseRecordType,respText)) {
 
-                TXstatus originalStatus=dbSessionBean.getTXstatus(txid, CSMDBSessionBean.requestRecordType);
-            	// Reverse liquidity debit with a credit to the debtor liquidity.
-        		if (!dbSessionBean.updateLiquidity(debtorbic, originalStatus.value)) {
-        			logger.warn("Could not update liqidity {} for transaction {} with value {}",debtorbic,txid,originalStatus.value);
+                String valueStr=XMLutils.getElementValue(orgMsg,"IntrBkSttlmAmt");
+                long value=0;	// Euro cents
+                try {
+                	float fvalue=Float.parseFloat(valueStr);	// Could do a format check here
+                	value=(long) (fvalue*100);	// Convert to Euro cents and ignore fractions (not allowed with SEPA)
+                } catch (RuntimeException e) {};
+
+        		if (!dbSessionBean.updateLiquidity(debtorbic, value)) {
+        			logger.warn("Could not update liqidity {} for transaction {} with value {}",debtorbic,txid,value);
         		}
             	// Update the status codes to show it timed out
-            	dbSessionBean.txStatusUpdate(txid,status,reason,new Date(),originalStatus.value,CSMDBSessionBean.responseRecordType);
+            	dbSessionBean.txStatusUpdate(txid,status,reason,new Date(),value,CSMDBSessionBean.responseRecordType);
 
             	// Get connection from pool
 		        QueueConnection conn = qcf.createQueueConnection();

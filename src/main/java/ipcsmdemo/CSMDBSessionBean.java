@@ -254,17 +254,23 @@ public class CSMDBSessionBean  {
 				// Get recent liquidity changes and update liquidity value (will be copied to CSMSTATUS later)
 				sql = "SELECT value,_ROWID_ from CSMLIQUIDITY WHERE bic='" + bic + "'";
 				rs = stmt.executeQuery(sql);
-				Statement dstmt=con.createStatement();
+				String rowIDs="";
 				while (rs.next()) {
 					long value=rs.getLong("VALUE");
 					long rowid=rs.getLong("_ROWID_");
 					liquidity=liquidity+value;
-					sql = "DELETE FROM CSMLIQUIDITY WHERE _ROWID_ = '" + rowid + "'";
-					dstmt.executeUpdate(sql);
+					//sql = "DELETE FROM CSMLIQUIDITY WHERE _ROWID_ = '" + rowid + "'";
+					//dstmt.executeUpdate(sql);
+					rowIDs=rowIDs+"'"+rowid+"',";
 				}
-				dstmt.close();
 				rs.close();
 				stmt.close();
+				if (!rowIDs.isEmpty()) {
+					Statement dstmt=con.createStatement();
+					sql = "DELETE FROM CSMLIQUIDITY WHERE _ROWID_ IN (" + rowIDs.substring(0,rowIDs.length()-1) + ")";
+					dstmt.executeUpdate(sql);
+					dstmt.close();
+				}
 			} catch (SQLException e) {
 				logger.error("Get liquidity error " + e);
 				lastException=e;
@@ -709,16 +715,6 @@ public class CSMDBSessionBean  {
 					st.executeUpdate(sql);
 					int cnt = st.getUpdateCount();
 					data = "Deleted " + cnt + ", key="+key;
-				}
-				// Truncate or delete from CSMSTATUSTABLE
-				if (id.equals("%")) {
-					sql = "TRUNCATE TABLE CSMtimer";
-					st.executeUpdate(sql);
-				} else {
-					if (key.equalsIgnoreCase("TXID")) {
-						sql = "DELETE FROM CSMSTATUSTABLE WHERE TXID LIKE '" + id + "'";
-						st.executeUpdate(sql);
-					}
 				}
 			} catch (SQLException e) {
 				logger.error("Query error " + e);
