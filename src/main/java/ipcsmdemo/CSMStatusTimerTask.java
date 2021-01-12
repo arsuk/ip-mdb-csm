@@ -60,21 +60,22 @@ public class CSMStatusTimerTask {
 			conn = qcf.createQueueConnection();
 	        conn.start();	        
 			QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
-			Queue timeoutDest;
+			Queue liquidityDest;
+			String queueName="instantpayments_csm_liquidity";
 			try {
 	            InitialContext ic = new InitialContext();
-				timeoutDest=(Queue)ic.lookup("CSMLiquidityQueue"); // Lookup JNDI name
+				liquidityDest=(Queue)ic.lookup(queueName); // Lookup JNDI name - java:/jms/queue/queueName
 			} catch (NamingException e) {
-				timeoutDest=session.createQueue("instantpayments_csm_liquidity");	// Use timer MDB default queue name 
+				liquidityDest=session.createQueue(queueName);	// Use liquidity MDB default queue name 
 			}
-			QueueSender sender = session.createSender(timeoutDest);
+			QueueSender sender = session.createSender(liquidityDest);
 	        TextMessage sendmsg=session.createTextMessage("");
 	    	sender.send(sendmsg);
 	    	sender.close();
 			session.close();
 			conn.close();	// Return connection to the pool
 		} catch (JMSException e) {
-            throw new EJBException(e);
+            logger.error("Liquidity timer "+e);
 		}
 
     }

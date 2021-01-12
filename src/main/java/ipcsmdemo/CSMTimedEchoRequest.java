@@ -89,11 +89,15 @@ public class CSMTimedEchoRequest {
 	        for (int i=0;i<banks.length;i++) {
 	        	Queue requestDest=null;
 	        	String bic=banks[i].bic;
-	        	String queueName="CSMEchoQueue"+bic;// BIC
+	        	String name=banks[i].name;
+	        	String queueName="instantpayments_"+name+"_echo_request";
 	        	try {
 	        		InitialContext iniCtx = new InitialContext();
 	        		requestDest=(Queue)iniCtx.lookup(queueName);	
 	        	} catch(NamingException  ne) {};
+	        	if (requestDest==null) {
+	        		requestDest=session.createQueue(queueName);
+	        	}
 	        	if (requestDest==null) {
 	        		logger.info("Missing queue {}",queueName);
 	        	} else {
@@ -110,7 +114,7 @@ public class CSMTimedEchoRequest {
 	        conn.close();	// Return connection to the pool
             logger.trace("Sent {} echos at {}",sent,new Date());
         } catch (JMSException e) {
-        	throw new EJBException(e);
+        	logger.error("Timer MDB "+e);
         }
 
     }

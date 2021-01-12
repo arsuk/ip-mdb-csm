@@ -124,6 +124,19 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
 		}
     	return queue;
     }
+    
+    static BankStatus[] bankStatus=null;
+    
+    String lookupBankName (String bic) {
+    	if (bankStatus==null)
+    		bankStatus=dbSessionBean.getStatus("%");
+    	for (int i=0;i<bankStatus.length;i++) {
+    		if (bic.equals(bankStatus[i].bic)) {
+    			return bankStatus[i].name;
+    		}
+    	}
+    	return null;
+    }
                 
     public void onMessage(Message msg)
     {
@@ -163,15 +176,22 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
            	String confirmationReason="";
            	
             Context ic = new InitialContext();
-            Queue confirmationDest = lookupQueue(ic,"CSMBeneficiaryConfirmationQueue"+creditorBIC);
-            if (confirmationDest==null)  {
+
+            String confirmationQueueName=null;            
+            String beneficiaryName = lookupBankName(creditorBIC);
+            if (beneficiaryName==null)  {
     			logger.error("Lookup error creditor "+creditorBIC);
     			return;
+    		} else {
+    			confirmationQueueName="instantpayments_"+beneficiaryName+"_beneficiary_payment_confirmation";
     		}
-        	Queue responseDest = lookupQueue(ic,"CSMOriginatorResponseQueue"+debtorBIC);
-            if (responseDest==null)  {
+            String responseQueueName=null;
+            String originatorName = lookupBankName(debtorBIC);
+            if (originatorName==null)  {
     			logger.error("Lookup error debtor "+debtorBIC);
     			return;
+    		} else {
+    			responseQueueName="instantpayments_"+originatorName+"_originator_payment_response";
     		}
 
            	// Insert response record (will fail if it is a duplicate or DB error)
@@ -210,7 +230,10 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             QueueConnection conn = qcf.createQueueConnection();
             conn.start();
             QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
-            QueueSender senderResp = session.createSender(responseDest);
+        	Queue responseDest = lookupQueue(ic,responseQueueName);
+        	if (responseDest==null)
+        		responseDest=session.createQueue(responseQueueName);
+        	QueueSender senderResp = session.createSender(responseDest);
 
             Date origTime = null;
             try {
@@ -259,6 +282,9 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             
         	// Send beneficiary confirmation if ACCP or or confirmation reject due to timeout or system error.  
             if (status.equals("ACCP") || !confirmationReason.isEmpty()) {
+            	Queue confirmationDest = lookupQueue(ic,confirmationQueueName);
+            	if (confirmationDest==null)
+            		confirmationDest=session.createQueue(confirmationQueueName);
             	QueueSender senderConf=session.createSender(confirmationDest);
                 senderConf.send(sendmsg);
                 senderConf.close();

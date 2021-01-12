@@ -110,9 +110,22 @@ public class CSMTimoutMDB implements MessageDrivenBean, MessageListener
     	try {
     		queue = (Queue)ic.lookup(name);
     	} catch (NamingException e) {
-			logger.trace("Beneficiary lookup error "+e);
+			logger.trace("Timeout lookup error "+e);
 		}
     	return queue;
+    }
+    
+    static BankStatus[] bankStatus=null;
+    
+    String lookupBankName (String bic) {
+    	if (bankStatus==null)
+    		bankStatus=dbSessionBean.getStatus("%");
+    	for (int i=0;i<bankStatus.length;i++) {
+    		if (bic.equals(bankStatus[i].bic)) {
+    			return bankStatus[i].name;
+    		}
+    	}
+    	return null;
     }
                 
     public void onMessage(Message msg)
@@ -161,7 +174,16 @@ public class CSMTimoutMDB implements MessageDrivenBean, MessageListener
 				
 	    		QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
 	
-	   			Queue responseDest=(Queue)ic.lookup("CSMOriginatorResponseQueue"+debtorbic);
+	            String originatorName = lookupBankName(debtorbic);
+	            if (originatorName==null) {
+	            	logger.error("Unknown bic "+debtorbic);
+	            	return;
+	            }
+	            String responseQueueName="instantpayments_"+originatorName+"_originator_payment_response";
+	        	Queue responseDest = lookupQueue(ic,responseQueueName);
+	        	if (responseDest==null)
+	        		responseDest=session.createQueue(responseQueueName);
+
 	           	QueueSender sender = session.createSender(responseDest);
 
 	           	TextMessage sendmsg = session.createTextMessage(respText);

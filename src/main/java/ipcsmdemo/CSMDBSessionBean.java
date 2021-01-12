@@ -44,6 +44,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("setEchoStatus "+lastException);
 		} else {
     		java.sql.Timestamp sTime = new java.sql.Timestamp(echoTime.getTime());
 			try {
@@ -78,6 +79,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("getEchoStatus "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();
@@ -122,6 +124,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("insertStatus "+lastException);
 		} else {
     		java.sql.Timestamp sTime = new java.sql.Timestamp(echoTime.getTime());
 			try {
@@ -156,6 +159,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("setliquidity "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
@@ -189,6 +193,7 @@ public class CSMDBSessionBean  {
 		long liquidity=0;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("getliquidity "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
@@ -237,6 +242,7 @@ public class CSMDBSessionBean  {
 		long liquidity=0;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("getDeleteliquidity "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
@@ -296,6 +302,7 @@ public class CSMDBSessionBean  {
 
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("updateliquidity "+lastException);
 		} else {
 			if (liquidityCache==null) {
 				try {
@@ -353,6 +360,7 @@ public class CSMDBSessionBean  {
 		int changes=0;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("saveliquidityStatus "+lastException);
 		} else {
 			if (liquidityCache==null)
 			try {
@@ -382,7 +390,7 @@ public class CSMDBSessionBean  {
 					logger.error("Error on close " + e);
 				};
 			} else
-			try {
+			try {	// Update from cache
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
 				stmt = con.createStatement();
 
@@ -420,6 +428,7 @@ public class CSMDBSessionBean  {
 
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("deleteliquidity "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
@@ -452,6 +461,7 @@ public class CSMDBSessionBean  {
 
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("deleteliquidity "+lastException);
 		} else {
 			if (liquidityCache==null)
 			try {
@@ -490,6 +500,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("txInsert "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
@@ -524,6 +535,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("txStatusUpdate "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
@@ -558,6 +570,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("txQueryKey "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();
@@ -612,6 +625,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("getTXmsg "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();
@@ -649,6 +663,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("getTXstatus "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();
@@ -698,6 +713,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("deleteTX "+lastException);
 		} else {
 			try {
 				con = ds.getConnection();
@@ -742,6 +758,7 @@ public class CSMDBSessionBean  {
 		lastException=null;
 		if (ds==null) {
 			lastException=new Exception("Datasource not initialized");
+			logger.error("txCount "+lastException);
 		} else
         try {
         	con = ds.getConnection();	// Connect using datasource username/pwd etc.
@@ -818,7 +835,7 @@ public class CSMDBSessionBean  {
 	        	stmt = con.createStatement();
 	        	String sql = "CREATE TABLE CSMSTATUS " +
 	                         "(bic VARCHAR(8), " +
-	                         " name VARCHAR(255)," +
+	                         " name VARCHAR(255)," + // Name as used in queue names
 	                         " liquidity BIGINT, " + // Euro cents
 	                         " lastecho DATETIME, " +  
 	                         " PRIMARY KEY ( bic ))"; 

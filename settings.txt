@@ -1,0 +1,70 @@
+CSM Settings
+============
+
+The ip-mdb-csm application cannit be used witout a DB datasource.
+Settings can be set as system properties or as bindings.
+
+Wildfly standalone.xml:
+
+    <system-properties>
+        <property name="IPCSMdatasource" value="jboss/datasources/ExampleDS"/>  <!-- JNDI name DB datasource -->
+        <property name="CSMliquiditySQL" value="true"/>     <!-- If false liquidity in memory - default true --> 
+        <!-- following entries only used for outbound messaging not managed by Wildfly! -->
+        <property name="ActiveMQhostStr" value="tcp://localhost:61618"/>
+        <property name="ActiveMQuser" value="admin"/>
+        <property name="ActiveMQpassword" value="admin"/>
+        <!-- following used if the above ActiveMQ entries not present - normal usage, default if not present -->
+        <property name="ConnectionFactory" value="ConnectionFactory"/>  <!-- JNDI name -->
+        <!--property name="ConnectionFactory" value="jms/connection/amq/pooled"/-->
+    </system-properties>
+
+Binding settings as alternative for system properties:
+
+        <subsystem xmlns="urn:jboss:domain:naming:2.0">
+            <bindings>
+                < name="java:global/IPCSMdatasource" value="jboss/datasources/ExampleDS"/>
+                <!-- following can also be defined as system properties -->
+                <simple name="java:global/ConnectionFactory" value="ConnectionFactory"/>
+                <!-- Following overrides above and it not recommented except for test -->
+                <simple name="java:global/ActiveMQhostStr" value="tcp://localhost:61618"/>
+                <simple name="java:global/ActiveMQuser" value="admin"/>
+                <simple name="java:global/ActiveMQpassword" value="admin"/>
+            </bindings>
+            <remote-naming/>
+        </subsystem>
+
+Queue names do not need to be defined in standalone.xml. The MDB receive queue names are configured in the deployment package file ejb-jar.xml.
+The default MDB queue names have 'mybank' as a bank identifer. This can be changed using ejb-jar.xml and additional bank MDBs can be added. 
+Receiving queues are (per bank): 
+    instantpayments_mybank_originator_payment_request
+    instantpayments_mybank_beneficiary_payment_response
+    instantpayments_mybank_echo_response
+CSM internal queues are:
+    instantpayments_csm_liquidity
+    instantpayments_csm_timeout
+Sending bank name for the queue names are looked up in the CSMstatus table using DB the appropriate BIC in the incoming message. 
+However the application does a JNDI lookup before openning a queue for sending so the physical queue name can be changed in standalone.xml.
+The sending queues for banks are shown below but do not normally have to be configured.
+
+        <subsystem xmlns="urn:jboss:domain:messaging-activemq:7.0">
+            <server name="default">
+                ........
+                ........
+                <jms-queue name="instantpayments_mybank_beneficiary_payment_request" entries="instantpayments_mybank_beneficiary_payment_request"/>
+                <jms-queue name="instantpayments_mybank_originator_payment_response" entries="instantpayments_mybank_originator_payment_response"/>
+                <jms-queue name="instantpayments_mybank_beneficiary_payment_confirmation" entries="instantpayments_mybank_beneficiary_payment_confirmation"/>
+                <jms-queue name="instantpayments_mybank_echo_request" entries="instantpayments_mybank_echo_request"/>
+            </server>
+        </subsystem>
+
+The full set would be:
+                <jms-queue name="instantpayments_csm_liquidity" entries="instantpayments_csm_liquidity"/>
+                <jms-queue name="instantpayments_csm_timeout" entries="instantpayments_csm_timeout"/>
+                <jms-queue name="instantpayments_mybank_beneficiary_payment_request" entries="instantpayments_mybank_beneficiary_payment_request"/>
+                <jms-queue name="instantpayments_mybank_beneficiary_payment_response" entries="instantpayments_mybank_beneficiary_payment_response"/>
+                <jms-queue name="instantpayments_mybank_originator_payment_request" entries="instantpayments_mybank_originator_payment_request"/>
+                <jms-queue name="instantpayments_mybank_originator_payment_response" entries="instantpayments_mybank_originator_payment_response"/>
+                <jms-queue name="instantpayments_mybank_beneficiary_payment_confirmation" entries="instantpayments_mybank_beneficiary_payment_confirmation"/>
+                <jms-queue name="instantpayments_mybank_echo_request" entries="instantpayments_mybank_echo_request"/>
+                <jms-queue name="instantpayments_mybank_echo_response" entries="instantpayments_mybank_echo_response"/>
+

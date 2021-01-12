@@ -123,6 +123,19 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
 		}
     	return queue;
     }
+
+    static BankStatus[] bankStatus=null;
+    
+    String lookupBankName (String bic) {
+    	if (bankStatus==null)
+    		bankStatus=dbSessionBean.getStatus("%");
+    	for (int i=0;i<bankStatus.length;i++) {
+    		if (bic.equals(bankStatus[i].bic)) {
+    			return bankStatus[i].name;
+    		}
+    	}
+    	return null;
+    }
                 
     public void onMessage(Message msg)
     {
@@ -161,24 +174,29 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
             }
             
             Context ic = new InitialContext();
-            Queue beneficiaryDest = lookupQueue(ic,"CSMBeneficiaryRequestQueue"+creditorBIC);
-            if (beneficiaryDest==null)  {
-    			logger.trace("Lookup error creditor "+creditorBIC);
+
+            String beneficiaryQueueName=null;
+        	String beneficiaryName=lookupBankName(creditorBIC);
+            if (beneficiaryName==null)  {
+    			logger.trace("Lookup error creditor name "+creditorBIC);
     			status="RJCT";	// Reject back to originator
     			reason="RC01";
+    		} else {
+    			beneficiaryQueueName="instantpayments_"+beneficiaryName+"_beneficiary_payment_request";
     		}
-        	Queue responseDest = lookupQueue(ic,"CSMOriginatorResponseQueue"+debtorBIC);
-            if (responseDest==null)  {
-    			logger.error("Lookup error debtor "+debtorBIC);
-    			return;	// Stop because we cannot reply (no queue)
+            String originatorQueueName=null;
+            String originatorName = lookupBankName(debtorBIC);
+            if (originatorName==null)  {
+    			logger.error("Lookup error debtor name "+debtorBIC);
+    			return;	// Stop because we cannot reply (no name - no queue)
+    		} else {
+    			originatorQueueName="instantpayments_"+originatorName+"_originator_payment_response";
     		}
-
+            
             // Check that this queue belongs to the originator BIC
         	Destination incomingDestination=msg.getJMSDestination();
         	// First find our BIC using the name in the MDB queue we are serving - only need to do this once
             if (myBIC==null) {
-            	BankStatus[] bankStatus=dbSessionBean.getStatus("%");
-
             	for (int i=0;i<bankStatus.length;i++) {
             		if (incomingDestination.toString().contains(bankStatus[i].name)) {
             			myBIC=bankStatus[i].bic;
@@ -258,6 +276,9 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
                         QueueSession.AUTO_ACKNOWLEDGE);
            
             if (status.equals("")) {
+            	Queue beneficiaryDest = lookupQueue(ic,beneficiaryQueueName);
+            	if (beneficiaryDest==null)
+            		beneficiaryDest=session.createQueue(beneficiaryQueueName);
             	QueueSender sender = session.createSender(beneficiaryDest);
             	msg.setJMSType("ACCP"); // Allows for broker to use message selector
             	sender.send(msg);
@@ -266,6 +287,9 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
                	dbSessionBean.txStatusUpdate(txid,status,reason,origTime,value,CSMDBSessionBean.requestRecordType);
             } else {
             	// Reject to originator
+            	Queue responseDest = lookupQueue(ic,originatorQueueName);
+            	if (responseDest==null)
+            		responseDest=session.createQueue(originatorQueueName);
             	QueueSender sender = session.createSender(responseDest);
             	
             	Document rejectdoc=messageUtils.CreateReject(msgdoc, reason);
