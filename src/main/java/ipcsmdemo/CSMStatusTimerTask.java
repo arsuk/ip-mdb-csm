@@ -18,7 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** 
- * A timer task that runs the liquidity status update.
+ * CSM timer task<br/>
+ * A timer task that runs housekeeping activities every 1 second.
+ * The only activity currently implemented if the liquidity status update.
+ * @author Allan Smith
  * 
  */ 
 @Singleton

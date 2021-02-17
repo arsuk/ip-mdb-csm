@@ -29,11 +29,13 @@ import java.util.Date;
 import java.util.Hashtable;
 import java.util.TimeZone;
 
-/** 
+/**
+ * CSM Beneficiary Response Handler.<br/>
  * An MDB that simulates an Instant Payments CSM handling beneficiary (creditor bank) responses. 
  * It receives beneficiary responses and if OK it forwards the answer to the originator and a confirmation to the beneficiary bank.
  * It also receives time out beneficiary messages from the timer task which will be forwarded to the originator. Duplicates are 
- * ignored because we might get a timeout and a response. 
+ * ignored because we might get a timeout and a response.
+ * @author Allan Smith
  * 
  */
 @MessageDriven(name = "CSMBeneficiaryBean", activationConfig = {

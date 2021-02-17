@@ -33,10 +33,12 @@ import java.util.Hashtable;
 import java.util.TimeZone;
 
 /** 
+ * Payment request (pacs008) handling MDB<br/>
  * An MDB that simulates an Instant Payments CSM handling the originator (debtor bank) request.
  * If OK it forwards the payment to the beneficiary queue and inserts an entry in the timer task table.
  * If not OK the message is rejected to the originator response queue.  
- * 
+ * @author Allan Smith
+ *  
  */
 @MessageDriven(name = "CSMOriginatorBean", activationConfig = {
 		//@ActivationConfigProperty(propertyName = "transaction-type", propertyValue = "Bean"),
@@ -154,7 +156,11 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
             if (msg.getJMSRedelivered()) logger.info("Redelivered "+new Date()+" "+id);
 
             TextMessage tm = (TextMessage) msg;
-            Document msgdoc=XMLutils.bytesToDoc(tm.getText().getBytes("UTF-8"));	// pacs.008 input msg
+            Document msgdoc=XMLutils.stringToDoc(tm.getText());	// pacs.008 input msg
+            if (msgdoc==null) {
+            	logger.error("Illegal message - bad xml");
+            	return;
+            }
             String txid=XMLutils.getElementValue(msgdoc,"TxId");
             String debtorBIC=XMLutils.getElementValue(XMLutils.getElement(msgdoc,"DbtrAgt"),"BIC");
             String creditorBIC=XMLutils.getElementValue(XMLutils.getElement(msgdoc,"CdtrAgt"),"BIC");
@@ -312,7 +318,7 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
             session.close();
             conn.close();	// Return connection to the pool
                       
-        } catch(JMSException | UnsupportedEncodingException e) {
+        } catch(JMSException e) {
             throw new EJBException(e);
         } catch (NamingException e) {
 			logger.error("Enexpected lookup error "+e);

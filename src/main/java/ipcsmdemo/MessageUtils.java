@@ -5,7 +5,12 @@ import java.util.Date;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-
+/** 
+ * Class for XML message handling procedures used by multiple classes<br/>
+ * CreateReject - create a reject pacs002 from a payment request pacs008. 
+ * @author Allan Smith
+ * 
+ */
 public class MessageUtils {
 
 	static SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");	// 2018-12-28T15:25:40.264

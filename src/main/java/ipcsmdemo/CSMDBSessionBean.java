@@ -17,7 +17,12 @@ import java.sql.Statement;
 import java.util.Date;
 import java.util.Hashtable;
 import java.util.Set;
- 
+/**
+ * Session bean supporting DB queries<br/>
+ * This bean handles all DB queries and updates. 
+ * @author Allan Smith
+ *
+ */ 
 @Stateless
 public class CSMDBSessionBean  {
 	private static final Logger logger = LoggerFactory.getLogger(CSMDBSessionBean.class);

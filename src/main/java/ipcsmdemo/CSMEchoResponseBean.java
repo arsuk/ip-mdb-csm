@@ -20,9 +20,11 @@ import java.util.Date;
 import java.util.TimeZone;
 
 /** 
+ * Echo response handling MDB<br/>
  * An MDB that simulates an Instant Payments client echo request / response function. 
  * It receives echo responses from the client bank and updates the status table with the time. No online/offline logic is implemented. 
- * 
+ * @author Allan Smith
+ *  
  */
 @MessageDriven(name = "CSMEchoResponseBean", activationConfig = {
         @ActivationConfigProperty(propertyName = "maxSessions", propertyValue = "1"),
@@ -58,7 +60,11 @@ public class CSMEchoResponseBean implements MessageListener
             if (msg.getJMSRedelivered()) logger.info("Redelivered {} {}",new Date(),id);
 
             TextMessage tm = (TextMessage) msg;
-            Document doc=XMLutils.bytesToDoc(tm.getText().getBytes("UTF-8"));
+            Document doc=XMLutils.stringToDoc(tm.getText());
+            if (doc==null) {
+            	logger.error("Illegal message - bad xml");
+            	return;
+            }
             
             String bic=XMLutils.getElementValue(doc,"BIC");
           
@@ -86,7 +92,7 @@ public class CSMEchoResponseBean implements MessageListener
             
             // TBA - log status in DB.
 
-        } catch(JMSException | IOException e) {
+        } catch(JMSException e) {
             throw new EJBException(e);
         }
     }

@@ -25,7 +25,12 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
- 
+/**
+ * Servlet supporting DB queries<br/>
+ * The CSM demo html DB query page uses this servlet to retrieve transaction information or delete records
+ * @author Allan Smith
+ *
+ */
 @WebServlet("/db")
 public class CSMDBServlet extends HttpServlet {
 

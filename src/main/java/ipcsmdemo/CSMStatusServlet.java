@@ -26,7 +26,12 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
- 
+/**
+ * Servlet supporting status DB queries<br/>
+ * The CSM demo html status query page uses this servlet to retrieve status information. 
+ * @author Allan Smith
+ *
+ */ 
 @WebServlet("/status")
 public class CSMStatusServlet extends HttpServlet {
 

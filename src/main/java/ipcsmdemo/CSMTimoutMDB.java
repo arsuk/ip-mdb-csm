@@ -32,8 +32,10 @@ import java.util.Hashtable;
 import java.util.TimeZone;
 
 /** 
+ * Timer task creating echo requests<br/>
  * An MDB creates timeout messages. We do this in a separate MDB so that each message and DB update is done in a separate transaction.
  * This avoids taking too long in the CSMTimerTask. 
+ * @author Allan Smith
  * 
  */
 @MessageDriven(name = "CSMTimeoutMDB", activationConfig = {

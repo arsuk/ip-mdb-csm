@@ -21,9 +21,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 /** 
+ * Echo request timer task<br/>
  * A timer task that simulates an Instant Payments CSM echo request processing.
- * It sends and echo request to each configured client every minute.  
- * 
+ * It sends and echo request to each configured client every interval.  
+ * @author Allan Smith
  */
 @Singleton
 public class CSMTimedEchoRequest {
