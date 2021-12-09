@@ -43,7 +43,7 @@ import java.util.TimeZone;
         @ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue"),
         @ActivationConfigProperty(propertyName = "destination", propertyValue = "instantpayments_mybank_beneficiary_payment_response")  })
 
-public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
+public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBean, MessageListener
 {
 	private static final Logger logger = LoggerFactory.getLogger(CSMBeneficiaryBean.class);
 
@@ -51,8 +51,6 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
     private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
     
 	private String defaultTemplate="pacs.002.xml";
-	
-	private MessageUtils messageUtils;
     
 	SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");	// 2018-12-28T15:25:40.264
 
@@ -98,8 +96,6 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             // Get XML template for creating messages from a file - real application code would have a better way of doing this
             docText=XMLutils.getTemplate(defaultTemplate);
             
-            messageUtils=new MessageUtils();
-            
 	       	logger.info("Started");
         }
         catch (javax.naming.NameNotFoundException e) {
@@ -115,29 +111,6 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
 
         ctx = null;
 
-    }
-	
-    Queue lookupQueue (Context ic, String name) {
-    	Queue queue=null;
-    	try {
-    		queue = (Queue)ic.lookup(name);
-    	} catch (NamingException e) {
-			logger.trace("Beneficiary lookup error "+e);
-		}
-    	return queue;
-    }
-    
-    static BankStatus[] bankStatus=null;
-    
-    String lookupBankName (String bic) {
-    	if (bankStatus==null)
-    		bankStatus=dbSessionBean.getStatus("%");
-    	for (int i=0;i<bankStatus.length;i++) {
-    		if (bic.equals(bankStatus[i].bic)) {
-    			return bankStatus[i].name;
-    		}
-    	}
-    	return null;
     }
                 
     public void onMessage(Message msg)
@@ -155,7 +128,7 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             if (msg.getJMSRedelivered()) logger.info("Redelivered "+new Date()+" "+id);
 
             TextMessage tm = (TextMessage) msg;
-            Document doc=XMLutils.stringToDoc(tm.getText());	// pacs.002 new document
+            Document doc=XMLutils.stringToDoc(tm.getText());	// pacs.002 new document from input message
             String txid=XMLutils.getElementValue(doc,"OrgnlTxId");
             if (txid==null) {
             	logger.error("Illegal message - no txid - message dropped");
@@ -210,9 +183,9 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             		logger.error("Duplicate detected but cannot get status "+txid);
             		status="RJCT";
             		confirmationReason="FF01";	// Send confirmation reject but no response
-            	} else if (reason.equals("") && duplicateStatus.reason.equals("AB06")) {
+            	} else if (reason.equals("") && duplicateStatus.reason.equals("AB05")) {
             		status="RJCT";
-            		confirmationReason="TM01";	// Valid response but already timed out - send confirmation reject but no response
+            		confirmationReason="AB01";	// Valid response but already timed out - send confirmation reject but no response
 	            	logger.trace("Already timed out - reject to conf queue- JMS ID {} TXID {} reason {} duplicate reason {}",id,txid,reason,duplicateStatus.reason);
             	} else if (duplicateStatus.reason.equals("AB06")) {
             		// Timed out already and error message back from beneficiary - just drop
@@ -255,6 +228,7 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
             if (status.equals("ACCP")) {
                	// Add value to creditor liquidity
         		if (!dbSessionBean.updateLiquidity(creditorBIC, originalStatus.value)) {
+        			// Update failed
             		status="RJCT";
             		confirmationReason="AM04";
         		}
@@ -273,10 +247,10 @@ public class CSMBeneficiaryBean implements MessageDrivenBean, MessageListener
                 senderResp.close();
             } else if (!confirmationReason.isEmpty()) {
             	// No forward to originator - create confirmation reject
-               	sendmsg = session.createTextMessage(XMLutils.documentToString(messageUtils.CreateReject(doc, confirmationReason)));
+               	sendmsg = session.createTextMessage(XMLutils.documentToString(createReject(doc, confirmationReason)));
             } else {
             	// Send reject to originator
-            	sendmsg = session.createTextMessage(XMLutils.documentToString(messageUtils.CreateReject(doc, reason)));
+            	sendmsg = session.createTextMessage(XMLutils.documentToString(createReject(doc, reason)));
                 sendmsg.setJMSType(status); // Allows for broker to use message selector
                 senderResp.send(sendmsg);
                 senderResp.close();

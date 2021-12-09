@@ -45,7 +45,7 @@ import java.util.TimeZone;
         @ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue"),
         @ActivationConfigProperty(propertyName = "destination", propertyValue = "instantpayments_mybank_originator_payment_request")  })
 
-public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
+public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean, MessageListener
 {
 	static final long SEVENSECS=7000;
 	
@@ -54,8 +54,6 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
     private MessageDrivenContext ctx = null;
     
     private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
-    
-	private MessageUtils messageUtils;
 	
 	private String myBIC=null;
     
@@ -96,8 +94,6 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
             	// Use an application server defined ActiveMQ connection pool using a JNDI name from a system property
 				qcf = ManagedPool.getPool(iniCtx,logger);
             }
-
-            messageUtils=new MessageUtils();
             
 	       	logger.info("Started");
         }
@@ -115,35 +111,12 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
         ctx = null;
 
     }
-	
-    Queue lookupQueue (Context ic, String name) {
-    	Queue queue=null;
-    	try {
-    		queue = (Queue)ic.lookup(name);
-    	} catch (NamingException e) {
-    		logger.trace("Originator lookup error "+e);
-		}
-    	return queue;
-    }
-
-    static BankStatus[] bankStatus=null;
-    
-    String lookupBankName (String bic) {
-    	if (bankStatus==null)
-    		bankStatus=dbSessionBean.getStatus("%");
-    	for (int i=0;i<bankStatus.length;i++) {
-    		if (bic.equals(bankStatus[i].bic)) {
-    			return bankStatus[i].name;
-    		}
-    	}
-    	return null;
-    }
-                
+	              
     public void onMessage(Message msg)
     {
         logger.trace("OriginatorRequest.onMessage, this="+hashCode());
         
-    	if (messageUtils==null) {
+    	if (qcf==null) {
     		logger.error("Not initialised for onMessage (missing response template or connection factory)");
     		ctx.setRollbackOnly();
     	}
@@ -199,10 +172,11 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
     			originatorQueueName="instantpayments_"+originatorName+"_originator_payment_response";
     		}
             
-            // Check that this queue belongs to the originator BIC
+            // Get incoming queue name this mdb is serving from the message
         	Destination incomingDestination=msg.getJMSDestination();
-        	// First find our BIC using the name in the MDB queue we are serving - only need to do this once
+            // Check that this queue belongs to the originator BIC        	
             if (myBIC==null) {
+            	// First find our BIC using the name in the MDB queue we are serving - only need to do this once
             	for (int i=0;i<bankStatus.length;i++) {
             		if (incomingDestination.toString().contains(bankStatus[i].name)) {
             			myBIC=bankStatus[i].bic;
@@ -298,7 +272,7 @@ public class CSMOriginatorBean implements MessageDrivenBean, MessageListener
             		responseDest=session.createQueue(originatorQueueName);
             	QueueSender sender = session.createSender(responseDest);
             	
-            	Document rejectdoc=messageUtils.CreateReject(msgdoc, reason);
+            	Document rejectdoc=createReject(msgdoc, reason);
 
                 String rejectText=XMLutils.documentToString(rejectdoc);
                 TextMessage sendmsg = session.createTextMessage(rejectText);

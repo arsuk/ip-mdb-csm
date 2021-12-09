@@ -43,7 +43,7 @@ import java.util.TimeZone;
         @ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue"),
         @ActivationConfigProperty(propertyName = "destination", propertyValue = "instantpayments_csm_timeout")  })
 
-public class CSMTimoutMDB implements MessageDrivenBean, MessageListener
+public class CSMTimoutMDB extends MessageUtils implements MessageDrivenBean, MessageListener
 {
 	private static final Logger logger = LoggerFactory.getLogger(CSMTimoutMDB.class);
 
@@ -149,8 +149,7 @@ public class CSMTimoutMDB implements MessageDrivenBean, MessageListener
         	// Reject to originator
     		String status="RJCT";
             String reason="AB05";
-	        MessageUtils mu=new MessageUtils();
-        	Document rejectDoc=mu.CreateReject(orgMsg, reason);
+        	Document rejectDoc=createReject(orgMsg, reason);
            	respText=XMLutils.documentToString(rejectDoc);
         
            	// Insert response record (will fail if it is a duplicate so the message has already been responded to)

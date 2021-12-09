@@ -158,7 +158,7 @@ public class CSMDBSessionBean  {
 
 	// Liquidity methods
 	public void setLiquidity(String bic,long liquidity) {
-		// Set liquidity in DB status table - only used if no cache
+		// Set liquidity in DB status table
 		Connection con=null;
 		Statement stmt=null;
 		lastException=null;
@@ -174,7 +174,6 @@ public class CSMDBSessionBean  {
 				String sql = "UPDATE CSMSTATUS SET liquidity=" + liquidity + 
 						" WHERE bic='" + bic + "'";
 				stmt.executeUpdate(sql);
-				stmt.close();
 			} catch (SQLException e) {
 				logger.error("Set liqudity error " + e);
 				lastException=e;
@@ -191,7 +190,7 @@ public class CSMDBSessionBean  {
 		}
 	}
 	public long getLiquidity(String bic) {
-		// Get liquidity from DB - last entry in liquidity table - only used if no cache
+		// Get liquidity from DB
 		Connection con=null;
 		Statement stmt=null;
 		lastException=null;
@@ -213,75 +212,7 @@ public class CSMDBSessionBean  {
 				} else{
 					logger.warn("No liquidity "+bic);
 				}
-
-				sql = "SELECT sum(value) as liquidity from CSMLIQUIDITY WHERE bic='" + bic + "'";
-				rs = stmt.executeQuery(sql);
-				long newLiquidity=0;
-				if (rs.first()) {
-					newLiquidity=rs.getLong("LIQUIDITY");
-					liquidity=liquidity+newLiquidity;
-				}
 				rs.close();
-				stmt.close();
-			} catch (SQLException e) {
-				logger.error("Get liquidity error " + e);
-				lastException=e;
-			} finally {
-				try {
-					if (stmt!=null)
-						stmt.close();
-					if (con != null)
-						con.close();
-				} catch (Exception e) {
-					logger.error("Error on close " + e);
-				};
-			}
-		}
-		return liquidity;
-	}
-	public long getDeleteLiquidity(String bic) {
-		// Get liquidity from DB - last entry in liquidity table - only used if no cache
-		Connection con=null;
-		Statement stmt=null;
-		lastException=null;
-		long liquidity=0;
-		if (ds==null) {
-			lastException=new Exception("Datasource not initialized");
-			logger.error("getDeleteliquidity "+lastException);
-		} else {
-			try {
-				con = ds.getConnection();    // Connect using datasource username/pwd etc.
-
-				stmt = con.createStatement();
-				
-				// Get liquidity from the status table
-				String sql = "SELECT liquidity from CSMSTATUS WHERE bic='" + bic + "'";
-				ResultSet rs = stmt.executeQuery(sql);
-				if (rs.first()) {
-					liquidity=rs.getLong("LIQUIDITY");
-				} else{
-					logger.warn("No liquidity "+bic);
-				}
-				// Get recent liquidity changes and update liquidity value (will be copied to CSMSTATUS later)
-				sql = "SELECT value,_ROWID_ from CSMLIQUIDITY WHERE bic='" + bic + "'";
-				rs = stmt.executeQuery(sql);
-				String rowIDs="";
-				while (rs.next()) {
-					long value=rs.getLong("VALUE");
-					long rowid=rs.getLong("_ROWID_");
-					liquidity=liquidity+value;
-					//sql = "DELETE FROM CSMLIQUIDITY WHERE _ROWID_ = '" + rowid + "'";
-					//dstmt.executeUpdate(sql);
-					rowIDs=rowIDs+"'"+rowid+"',";
-				}
-				rs.close();
-				stmt.close();
-				if (!rowIDs.isEmpty()) {
-					Statement dstmt=con.createStatement();
-					sql = "DELETE FROM CSMLIQUIDITY WHERE _ROWID_ IN (" + rowIDs.substring(0,rowIDs.length()-1) + ")";
-					dstmt.executeUpdate(sql);
-					dstmt.close();
-				}
 			} catch (SQLException e) {
 				logger.error("Get liquidity error " + e);
 				lastException=e;
@@ -310,23 +241,32 @@ public class CSMDBSessionBean  {
 			logger.error("updateliquidity "+lastException);
 		} else {
 			if (liquidityCache==null) {
+				// Update liquidity directly in the status table (will slow the system due to locking)
 				try {
 					con = ds.getConnection();    // Connect using datasource username/pwd etc.
 					stmt = con.createStatement();
-					// Get latest liquidity
-					long liquidity=getLiquidity(bic);
+					String sql = "SET LOCK_TIMEOUT 300000";
+					stmt.executeUpdate(sql);
+					// Get liquidity from the status table
+					long liquidity=0;
+					sql = "SELECT liquidity from CSMSTATUS WHERE bic='" + bic + "' FOR UPDATE";
+					ResultSet rs = stmt.executeQuery(sql);
+					if (rs.first()) {
+						liquidity=rs.getLong("LIQUIDITY");
+					} else{
+						logger.warn("No liquidity "+bic);
+					}
+					rs.close();
 					if (liquidity+value<0) {
 						success=false;
 					} else {
-						// Insert a new liquidity
-						java.sql.Timestamp sTime = new java.sql.Timestamp(new Date().getTime());
+						// Update liquidity
 						liquidity=liquidity+value;
-						String sql = "INSERT INTO CSMLIQUIDITY (bic,liquidity,value,timestamp) " +
-								"VALUES ('" + bic + "', '" + liquidity + "', '" + value + "', '" + sTime + "')";
+						sql = "UPDATE CSMSTATUS SET liquidity=" + liquidity +
+								" WHERE bic='"+bic+"'";
 						stmt.executeUpdate(sql);			
 					}
-					stmt.close();
-				} catch (SQLException e) {
+				} catch (SQLException e) { 
 					logger.error("Update liquidity error " + e);
 					lastException=e;
 					success=false;
@@ -342,6 +282,7 @@ public class CSMDBSessionBean  {
 				}
 			} else
 			synchronized (liquidityCache) {
+				// Update liquidiity cache for update later via the status timer task
 				Long liquidityObject=liquidityCache.get(bic);
 				if (liquidityObject==null) {
 					success=false;
@@ -367,34 +308,7 @@ public class CSMDBSessionBean  {
 			lastException=new Exception("Datasource not initialized");
 			logger.error("saveliquidityStatus "+lastException);
 		} else {
-			if (liquidityCache==null)
-			try {
-				// Update liquidity from the liquidity table
-				long liquidity=0;
-				con = ds.getConnection();    // Connect using datasource username/pwd etc.
-				stmt = con.createStatement();
-				// Get latest liquidity
-				String sql = "SELECT bic from CSMSTATUS";
-				ResultSet rs = stmt.executeQuery(sql);
-				while (rs.next()) {
-					String bic=rs.getString("BIC");
-					liquidity=getDeleteLiquidity(bic);
-					setLiquidity(bic,liquidity);
-				}
-				rs.close();
-			} catch (SQLException e) {
-				logger.error("Update error " + e);
-				lastException=e;
-			} finally {
-				try {
-					if (stmt!=null)
-						stmt.close();
-					if (con != null)
-						con.close();
-				} catch (Exception e) {
-					logger.error("Error on close " + e);
-				};
-			} else
+			if (liquidityCache!=null)
 			try {	// Update from cache
 				con = ds.getConnection();    // Connect using datasource username/pwd etc.
 				stmt = con.createStatement();
@@ -408,7 +322,6 @@ public class CSMDBSessionBean  {
 	    			stmt.executeUpdate(sql);
 	    			changes=changes+stmt.getUpdateCount();
 	    		}
-				stmt.close();
 			} catch (SQLException e) {
 				logger.error("Update error " + e);
 				lastException=e;
@@ -424,77 +337,6 @@ public class CSMDBSessionBean  {
 			}
 		}
     	return changes;
-	}
-	public void deleteLiquidity(String bic) {
-		// Delete liquidity records from DB 
-		Connection con=null;
-		Statement stmt=null;
-		lastException=null;
-
-		if (ds==null) {
-			lastException=new Exception("Datasource not initialized");
-			logger.error("deleteliquidity "+lastException);
-		} else {
-			try {
-				con = ds.getConnection();    // Connect using datasource username/pwd etc.
-
-				stmt = con.createStatement();
-
-				String sql = "DELETE CSMLIQUIDITY WHERE bic='" + bic + "'";
-				stmt.executeUpdate(sql);
-				stmt.close();
-			} catch (SQLException e) {
-				logger.error("Delete liquidity error " + e);
-				lastException=e;
-			} finally {
-				try {
-					if (stmt!=null)
-						stmt.close();
-					if (con != null)
-						con.close();
-				} catch (Exception e) {
-					logger.error("Error on close " + e);
-				};
-			}
-		}
-	}
-	public void deleteLiquidity() {
-		// Delete liquidity for all BICs records from DB 
-		Connection con=null;
-		Statement stmt=null;
-		lastException=null;
-
-		if (ds==null) {
-			lastException=new Exception("Datasource not initialized");
-			logger.error("deleteliquidity "+lastException);
-		} else {
-			if (liquidityCache==null)
-			try {
-				// Delete liquidity from the liquidity table
-				con = ds.getConnection();
-				stmt = con.createStatement();
-				// Get latest liquidity
-				String sql = "SELECT bic from CSMSTATUS";
-				ResultSet rs = stmt.executeQuery(sql);
-				while (rs.next()) {
-					String bic=rs.getString("BIC");
-					deleteLiquidity(bic);
-				}
-				rs.close();
-			} catch (SQLException e) {
-				logger.error("Delete liquidity error " + e);
-				lastException=e;
-			} finally {
-				try {
-					if (stmt!=null)
-						stmt.close();
-					if (con != null)
-						con.close();
-				} catch (Exception e) {
-					logger.error("Error on close " + e);
-				}
-			}
-		}
 	}
 
 	// CSMTXTABLE methods
@@ -512,7 +354,8 @@ public class CSMDBSessionBean  {
 
 				stmt = con.createStatement();
 
-				String sql = "INSERT INTO CSMTXTABLE (id,txid,type,adatetime,ndatetime,status,reason,msg) " +
+				String sql = "SET LOCK_TIMEOUT 60000; " + 
+						"INSERT INTO CSMTXTABLE (id,txid,type,adatetime,ndatetime,status,reason,msg) " +
 						"VALUES ('" + id + "', '" + txid + "', '" + type + "', NOW(), NOW(),  '', '', '" + msg + "')";
 				stmt.executeUpdate(sql);
 			} catch (SQLException e) {
@@ -548,7 +391,8 @@ public class CSMDBSessionBean  {
 
 	    		java.sql.Timestamp sTime = new java.sql.Timestamp(aTime.getTime());
 
-				String sql = "UPDATE CSMTXTABLE SET status='" + status + "', reason= '" + reason +
+				String sql = "SET LOCK_TIMEOUT 60000; " + 
+					"UPDATE CSMTXTABLE SET status='" + status + "', reason= '" + reason +
 					"', adatetime= '" + sTime +"', ndatetime=NOW(), value="+value+" WHERE TXID='"+txid+"' AND TYPE='"+type+"'";
 				stmt.executeUpdate(sql);
 			} catch (SQLException e) {
@@ -583,7 +427,7 @@ public class CSMDBSessionBean  {
 				String sql;
 				if (!key.equalsIgnoreCase("ID")&&!key.equalsIgnoreCase("TXID"))
 					key="ID";
-				if (id.equals("%"))
+				if (id.equals("*"))
 					sql = "SELECT * FROM CSMTXTABLE WHERE txid IN (SELECT txid FROM CSMTXTABLE WHERE ndatetime = SELECT max(ndatetime) FROM CSMTXTABLE)";
 				else if (id.contains("%"))
 					sql = "SELECT TYPE,ID,TXID,NDATETIME,MSG FROM CSMTXTABLE WHERE " + key + " LIKE '" + id + "' LIMIT 100";
@@ -595,10 +439,10 @@ public class CSMDBSessionBean  {
 				while (rs.next()) {
 					cnt++;
 					data = data + "\n" +
-							rs.getString("TYPE") + "\n" +
-							rs.getString("ID") + "\n" +
-							rs.getString("TXID") + "\n" +
-							rs.getString("NDATETIME") + "\n" +
+							"Type: "+rs.getString("TYPE") + "\n" +
+							"ID  : "+rs.getString("ID") + "\n" +
+							"TxID: "+rs.getString("TXID") + "\n" +
+							"DtTm: "+rs.getString("NDATETIME") + "\n" +
 							rs.getString("MSG");
 				}
 				rs.close();
@@ -825,6 +669,7 @@ public class CSMDBSessionBean  {
 	            stmt.executeUpdate(sql);
 	            stmt.executeUpdate("CREATE INDEX csmtxdtIndex ON CSMTXTABLE (ndatetime)");
 	            stmt.executeUpdate("CREATE UNIQUE INDEX csmtxidIndex ON CSMTXTABLE (txid,type)");
+	            stmt.executeUpdate("CREATE UNIQUE INDEX csmidIndex ON CSMTXTABLE (id,type)");
 	            stmt.close();
 	        	logger.info("Initialized - csmtxtable created.");
         	}catch (SQLException e) {
@@ -858,26 +703,8 @@ public class CSMDBSessionBean  {
             	if (stmt!=null) stmt.close();
         	}
 
-        	try {	// Create liquidity change table - liquidity updates - not used if cache used instead
-	        	stmt = con.createStatement();
-	        	String sql = "CREATE TABLE CSMLIQUIDITY " +
-	                         "(bic VARCHAR(8), " +
-	                         " value BIGINT, " + // Euro cents
-	                         " liquidity BIGINT, " + // Euro cents
-	                         " timestamp DATETIME )";
-	            stmt.executeUpdate(sql);
-	            stmt.executeUpdate("CREATE INDEX csmLiquidityIndex ON CSMLIQUIDITY (bic)");
-	            stmt.close();
-	        	logger.info("Initialized - csmliqudity created.");
-        	}catch (SQLException e) {
-            	if (e.toString().contains("already exists")) {
-    				logger.trace("Initialized - csmliquidity already present.");
-    			} else {
-    				logger.error("Initialization error " + e);
-    			}
-            	if (stmt!=null) stmt.close();
-        	}
-
+        	// Check if we will log liquidity updates directly in the sql csm status table or in memory (cache)
+        	// In both cases the liquidity in the status table is updated, the cache updates periodically by the status timer task
         	String liquidityCacheSQLswitchStr=System.getProperty("CSMliquiditySQL");
         	if (liquidityCacheSQLswitchStr==null)
         		liquidityCacheSQLswitchStr="true";
@@ -887,8 +714,8 @@ public class CSMDBSessionBean  {
         	}
         	if (liquidityCacheSQLswitchStr.equals("false"))
         	synchronized (this) {
-        		// If this property is set false we use a memory Hashtable cache of the liquidity instead of SQL updates.
-        		// The status table is updated from the cache periodically via the time task. 
+        		// If this property is set false we use a memory Hashtable cache of the liquidity for updates instead of SQL updates.
+        		// The status table is updated from the cache periodically via the status timer task. 
         		if (liquidityCache==null) {
 		        	// get bank info and fill liquidity cache 
         			liquidityCache=new Hashtable<String, Long>();

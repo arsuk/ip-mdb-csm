@@ -7,7 +7,7 @@
 <script type="text/javascript">
 function OnSubmitForm1()
 {
-	document.myform1.action = 'db?id='+document.getElementById("ID").value+'&key='+document.getElementById("KEY").value;
+	document.myform1.action = 'db?id='+encodeURIComponent(document.getElementById("ID").value)+'&key='+document.getElementById("KEY").value;
 }
 function OnSubmitForm2()
 {
@@ -20,7 +20,7 @@ function OnSubmitForm3()
 </script>
 </head>
 <body>
-<a id="logo" href="http://www.equensWorldline.com"><img alt="equensWorldline" height="30" width="240" src="equens.gif" /></a>
+<a id="logo" href="http://www.equensWorldline.com"><img alt="equensWorldline" height="30" width="240" src="logo.gif" /></a>
 <br/>
 <br/>
 <b>This is the IP CSM Simulation environment</b><br/>

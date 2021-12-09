@@ -27,7 +27,8 @@ import java.util.TimeZone;
  *  
  */
 @MessageDriven(name = "CSMEchoResponseBean", activationConfig = {
-        @ActivationConfigProperty(propertyName = "maxSessions", propertyValue = "1"),
+        @ActivationConfigProperty(propertyName = "maxSession", propertyValue = "1"),	// Artemis property
+        @ActivationConfigProperty(propertyName = "maxSessions", propertyValue = "1"),	// ActiveMQ property
         @ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue"),
         @ActivationConfigProperty(propertyName = "destination", propertyValue = "instantpayments_mybank_echo_response")
 })

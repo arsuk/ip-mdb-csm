@@ -56,7 +56,8 @@ public class CSMDBServlet extends HttpServlet {
     	if (id==null) 
     		data="Records "+dbSessionBean.txCount();
     	else {
-    		id=id.replaceAll("\\*", "%");
+    		if (!id.equals("*"))	// Single * is last tx - otherwise treat as %
+    			id=id.replaceAll("\\*", "%");
        		if(key.equals("id") || key.equals("txid"))
 				data=dbSessionBean.txQueryKey(id,key);
        		else

@@ -3,6 +3,13 @@ package ipcsmdemo;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import javax.ejb.EJB;
+import javax.jms.Queue;
+import javax.naming.Context;
+import javax.naming.NamingException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 /** 
@@ -13,20 +20,50 @@ import org.w3c.dom.Element;
  */
 public class MessageUtils {
 
+	private static final Logger logger = LoggerFactory.getLogger(MessageUtils.class);
+
 	static SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");	// 2018-12-28T15:25:40.264
 	private String responseTemplate="pacs.002.xml";
 	private byte[] responseText;
+	
+	@EJB
+	CSMDBSessionBean dbSessionBean;
 	
 	MessageUtils () {
         // Get XML template for creating messages from a file - real application code would have a better way of doing this
         responseText=XMLutils.getTemplate(responseTemplate);
 	}
 	
-	Document CreateReject(Document msgdoc, String reason) {
+    Queue lookupQueue (Context ic, String name) {
+    	Queue queue=null;
+    	try {
+    		queue = (Queue)ic.lookup(name);
+    	} catch (NamingException e) {
+			logger.trace("Lookup error "+e);
+		}
+    	return queue;
+    }
+    
+    static BankStatus[] bankStatus=null;
+    
+    String lookupBankName (String bic) {
+    	if (bankStatus==null)
+    		bankStatus=dbSessionBean.getStatus("%");
+    	for (int i=0;i<bankStatus.length;i++) {
+    		if (bic.equals(bankStatus[i].bic)) {
+    			return bankStatus[i].name;
+    		}
+    	}
+    	return null;
+    }
+	
+	Document createReject(Document msgdoc, String reason) {
 		
 		if (responseText==null) return null;
 
         String txid=XMLutils.getElementValue(msgdoc,"TxId");
+        if (txid==null)	// TxId not set with pain.002 so try OrgnlTxId 
+        	txid=XMLutils.getElementValue(msgdoc,"OrgnlTxId");
         String debtorBIC=XMLutils.getElementValue(XMLutils.getElement(msgdoc,"DbtrAgt"),"BIC");
         String creditorBIC=XMLutils.getElementValue(XMLutils.getElement(msgdoc,"CdtrAgt"),"BIC");
 

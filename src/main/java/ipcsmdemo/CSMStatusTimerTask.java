@@ -57,29 +57,9 @@ public class CSMStatusTimerTask {
     
     @Schedule(hour="*", minute="*", second="*/1", persistent=false)
     public void logCountsJob() throws IOException, NamingException {
-    	// Update liquidity status and delete liquidity change records
-        QueueConnection conn;
-		try {
-			conn = qcf.createQueueConnection();
-	        conn.start();	        
-			QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
-			Queue liquidityDest;
-			String queueName="instantpayments_csm_liquidity";
-			try {
-	            InitialContext ic = new InitialContext();
-				liquidityDest=(Queue)ic.lookup(queueName); // Lookup JNDI name - java:/jms/queue/queueName
-			} catch (NamingException e) {
-				liquidityDest=session.createQueue(queueName);	// Use liquidity MDB default queue name 
-			}
-			QueueSender sender = session.createSender(liquidityDest);
-	        TextMessage sendmsg=session.createTextMessage("");
-	    	sender.send(sendmsg);
-	    	sender.close();
-			session.close();
-			conn.close();	// Return connection to the pool
-		} catch (JMSException e) {
-            logger.error("Liquidity timer "+e);
-		}
+    	
+    	// Update liquidity status       
+    	dbSessionBean.saveLiquidityStatus();
 
     }
 }
