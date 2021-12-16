@@ -219,7 +219,15 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
             	return;
             }
 
-            TXstatus originalStatus=dbSessionBean.getTXstatus(txid, CSMDBSessionBean.requestRecordType);
+            TXstatus originalStatus=null;
+            for (int i=0;i<10&&originalStatus==null;i++) {
+            	// Should not happen but if non-xa connector used message can arrive before original message commit - if so wait
+            	originalStatus=dbSessionBean.getTXstatus(txid, CSMDBSessionBean.requestRecordType);
+            	if (originalStatus==null) {
+            		logger.warn("Original request message missing "+txid+" "+(i+1));
+            		try {Thread.sleep(10);} catch (InterruptedException e) {};          		
+            	}
+            }
             if (originalStatus==null) {
             	logger.error("Original request message missing "+txid);
         		status="RJCT";
