@@ -1,18 +1,14 @@
 The IP MDB based CSM simulation
 ===============================
-The ip-mdb-csm is a simulation of the IP CSM. It is a simple simultaion that can handle only simple payments.
+The ip-mdb-csm is a simulation of the IP CSM. It is a simple simulation that can handle only simple payments.
 It is designed to work with the ip-mdb-client-demo application that simulates a client system. 
 The idea is that each of these applications demonstrates the basic principles of Instant Payments. This can be
 useful for familiarizing programmers with the basic steps needed to communicate with the CSM. Furthermore, the
 ip-mdb-client-demo can be used to interact with the equensWorldline test environment thus verifying a clients
 infrastructure and user registratios before attempting to use new software. The ip-mdb-csm can be used to simulate
-the CSM if there is no connection to the equensWorldline test evnironment available for testing yet.
+the CSM if there is no connection to the equensWorldline test environment available for testing yet. 
 
-The ip-mdb-csm consisists of message driven beans that simulate the receiving originator messages and forwarding them
-to the beneficiary and vice versa. These are deployed within an instance of Wildfly.
-The queue names and related functionality supported are shown below. 
-
-The ip-mdb-csem consisists of message driven beans that simulate the CSM business processes. These are deployed
+The ip-mdb-csm consists of message driven beans that simulate the CSM business processes. These are deployed
 within an instance of Wildfly. The queue names and related functionality supported are IPOriginatorBean and
 IPBeneficiaryBean. These applications deal with a pacs.008 payment request and the resulting pacs.002 response.
 The beans listen to queues that are defined in the ip-mdb-csm-x.x.war file ejb-jar.xml file.
@@ -60,13 +56,13 @@ CSMOriginatorBean
 This bean reads the originator pacs.008 message forwards it to the client beneficiary process after validations. If the message
 has already expired (>7s) or if it fails validation a reject is sent to the client bank originator response queue.
 If the message is forwarded successfully a second timer message is send to the CSMTimeoutBean that will arrive after 7s. This 
-will be cancelled by the CSMTimoutBean if the beneficiary has reponded on time.
+will be cancelled by the CSMTimoutBean if the beneficiary has responded on time.
 
 CSMBeneficiaryBean
 ==================
-This bean receives the response from the client beneficiary response queue. If the timout task has already sent a response then
+This bean receives the response from the client beneficiary response queue. If the timeout task has already sent a response then
 the bean does nothing. If the message is too old (>7s) or contains a reject format message then a reject is sent to the client
-originator reponse queue, otherwise and accept message is send and a confirmation message is retuened to the beneficiary.
+originator response queue, otherwise and accept message is send and a confirmation message is returned to the beneficiary.
 
 CSMTimeoutBean
 ==============
@@ -82,5 +78,15 @@ in the the Wildfly subdirectory standalone/deployments. You can replace the XML 
 The standalone-amq.xml file is in the subdirectory standalone/configuration.
 To run the Wildfly server you simply have to run the 'start' command file in the wildfly directory.
 
-
+System Property Settings
+------------------------
+The following system properties are available for test purposes like problem / timeout simulation:
+    <property name="IPCSMdatasource" value="jboss/datasources/ExampleDS"/>	# Data source, for example the H2 default Wildfly DB service
+    <property name="CSMliquiditySQL" value="true"/> # Set false to use memory cache instead of SQL (H2)
+    <property name="ActiveMQhostStr" value="tcp://localhost:61618"/> # If set, avoid using the Wildfly connection pool for message send
+    # Note that there are also ActiveMQuser and ActiveMQpassword system variables but these are not usually necessary  
+    <property name="ConnectionFactory" value="/jms/ConnectionFactory"/>	# ActimeMQ connection pool for message sends
+    # The above is the name of the example connection pool provided by Wildfly.
+System properties can be set in a standalone.xml file or as parameters on the command line invoking Wildfly. Wildfly standalone examples
+are provided for ActiveMQ (amq), ActiveMQ Artemis (artemis), InVm queues (myfull), with and without an external H2 server.
 

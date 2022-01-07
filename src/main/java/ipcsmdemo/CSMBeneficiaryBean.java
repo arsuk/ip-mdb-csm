@@ -218,21 +218,25 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
             	logger.error("Bad AccptncDtTm "+acceptanceTime+" "+txid);
             	return;
             }
-
+            // Get original TX info from the DB (inserted by the CSMOriginatorBean)
             TXstatus originalStatus=null;
-            for (int i=0;i<10&&originalStatus==null;i++) {
-            	// Should not happen but if non-xa connector used message can arrive before original message commit - if so wait
+            int retryCnt=0;
+            while (retryCnt<10&&originalStatus==null) {
+            	// Retry loop should not be needed when an xa connector used but message can arrive before original tx db commit if no xa
             	originalStatus=dbSessionBean.getTXstatus(txid, CSMDBSessionBean.requestRecordType);
             	if (originalStatus==null) {
-            		logger.warn("Original request message missing "+txid+" "+(i+1));
+            		retryCnt++;
             		try {Thread.sleep(10);} catch (InterruptedException e) {};          		
             	}
             }
             if (originalStatus==null) {
+            	// Should always be an original TX unless old/incorrect messages left in Queue and DB has been cleaned up
             	logger.error("Original request message missing "+txid);
         		status="RJCT";
         		confirmationReason="FF01";
-            }
+            } else if (retryCnt>1)
+            	logger.warn("Original request message missing, xa not working "+txid+" retry succeeded "+retryCnt);
+            
             if (status.equals("ACCP")) {
                	// Add value to creditor liquidity
         		if (!dbSessionBean.updateLiquidity(creditorBIC, originalStatus.value)) {
