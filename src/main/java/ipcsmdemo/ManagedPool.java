@@ -15,6 +15,8 @@ import org.slf4j.Logger;
 public class ManagedPool {
 
 	static private QueueConnectionFactory privateManagedConnectionFactory=null;
+	
+	static boolean firstTime=true;
 
 	// Lookup system property "ConnectionFactory" to find out which pool we should use.
 	// If not found we use the pool defined in the standalone.xml for JBoss / Wildfly.
@@ -28,7 +30,8 @@ public class ManagedPool {
 
 		Object cf = iniCtx.lookup(cfStr);
 		privateManagedConnectionFactory = (QueueConnectionFactory) cf;
-		logger.info("Using queue factory "+cfStr);
+		if (firstTime) logger.info("Using queue factory "+cfStr);
+		firstTime=false;
 
 		return privateManagedConnectionFactory;
 	}

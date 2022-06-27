@@ -56,13 +56,13 @@ public class CSMDBServlet extends HttpServlet {
     	if (id==null) 
     		data="Records "+dbSessionBean.txCount();
     	else {
-    		if (!id.equals("*"))	// Single * is last tx - otherwise treat as %
+    		if (!id.equals("*"))	// Single * is last tx query or truncate for delete - otherwise treat as %
     			id=id.replaceAll("\\*", "%");
        		if(key.equals("id") || key.equals("txid"))
 				data=dbSessionBean.txQueryKey(id,key);
        		else
        			if(key.equals("delete"))
-       				data=dbSessionBean.deleteTX(id,key);
+       				data=dbSessionBean.deleteTX(id,"id");
        			else
        				data="Bad key "+key+", must be txid or id";
     	}

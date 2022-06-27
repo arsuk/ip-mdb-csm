@@ -5,18 +5,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import javax.ejb.*;
-import javax.jms.JMSException;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
-import javax.jms.TextMessage;
-import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-import org.apache.activemq.ActiveMQConnectionFactory;
-import org.apache.activemq.jms.pool.PooledConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -40,23 +30,8 @@ public class CSMTimedEchoRequest {
     
 	private String defaultTemplate="Echo_Request.xml";
 	
-    private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
-
 	public CSMTimedEchoRequest() {
 		
-    	// Check too see if there is a 'private pool' definition. Other wise look for the standalone config pool definition we should use.
-    	try { 
-            InitialContext iniCtx = new InitialContext();
-
-	    	qcf=PrivatePool.createPrivatePool(iniCtx,logger);	// Null if not configured in standalone.xml
-    		if (qcf==null) {
-            	// Use the application server ActiveMQ connection pool
-				qcf = ManagedPool.getPool(iniCtx,logger);
-    		}
-		} catch (NamingException e) {
-            logger.error("Activemq factory {}",e.getMessage());
-            throw new EJBException(e);
-		}
 	}
 	
     @Schedule(hour="*", minute="*/1", second="0", persistent=false)
@@ -81,42 +56,23 @@ public class CSMTimedEchoRequest {
         		return;
         	}
         	
-	        QueueConnection conn = qcf.createQueueConnection();
-	        conn.start();
-	
-	        QueueSession session = conn.createQueueSession(false,
-	                    QueueSession.AUTO_ACKNOWLEDGE);
 	        int sent=0;
 	        for (int i=0;i<banks.length;i++) {
-	        	Queue requestDest=null;
+
 	        	String bic=banks[i].bic;
 	        	String name=banks[i].name;
 	        	String queueName="instantpayments_"+name+"_echo_request";
-	        	try {
-	        		InitialContext iniCtx = new InitialContext();
-	        		requestDest=(Queue)iniCtx.lookup(queueName);	
-	        	} catch(NamingException  ne) {};
-	        	if (requestDest==null) {
-	        		requestDest=session.createQueue(queueName);
-	        	}
-	        	if (requestDest==null) {
-	        		logger.info("Missing queue {}",queueName);
-	        	} else {
-		        	QueueSender sender = session.createSender(requestDest);
-		        	XMLutils.setElementValue(XMLutils.getElement(doc,"InstdAgt"), "BIC", bic);
-		        	TextMessage sendmsg = session.createTextMessage(XMLutils.documentToString(doc));
-		        	sender.send(sendmsg);
-		            sender.close();
-	        	    sent++;
-	        	    logger.trace("Send echo on {} to {}",requestDest.getQueueName(),bic);
-	        	}
-	        }
-            session.close();  	
-	        conn.close();	// Return connection to the pool
-            logger.trace("Sent {} echos at {}",sent,new Date());
-        } catch (JMSException e) {
-        	logger.error("Timer MDB "+e);
-        }
 
+		      	XMLutils.setElementValue(XMLutils.getElement(doc,"InstdAgt"), "BIC", bic);
+		       	MessageUtils.sendMessage(XMLutils.documentToString(doc),queueName);
+	       	    sent++;
+	       	    logger.trace("Send echo on {} to {}",queueName,bic);
+
+	        }
+            logger.trace("Sent {} echos at {}",sent,new Date());
+        } catch (NamingException ne) {
+        	logger.error("Naming exception: "+ne);
+        }
+ 
     }
 }

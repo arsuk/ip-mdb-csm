@@ -1,7 +1,5 @@
 package ipcsmdemo;
 
-import org.apache.activemq.ScheduledMessage;
-import org.apache.activemq.jms.pool.PooledConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -16,21 +14,17 @@ import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
+
 import javax.jms.TextMessage;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Hashtable;
 import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** 
  * Payment request (pacs008) handling MDB<br/>
@@ -52,10 +46,13 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
 	private static final Logger logger = LoggerFactory.getLogger(CSMOriginatorBean.class);
 	
     private MessageDrivenContext ctx = null;
-    
-    private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
 	
 	private String myBIC=null;
+	
+	static AtomicInteger recvCount=new AtomicInteger(0);
+	static AtomicLong totDeliveryTime=new AtomicLong(0);
+	static Long maxDeliveryTime=0L;
+	static Long minDeliveryTime=0L;
     
 	SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");	// 2018-12-28T15:25:40.264
 	
@@ -64,16 +61,6 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
     
 	public CSMOriginatorBean() {
 		
-		// Check to see if a private pool is defined (if this is not the case 'null' we will look for the named Wildfly managed pool)
-    	try {
-			InitialContext iniCtx = new InitialContext(); 				
-
-			qcf=PrivatePool.createPrivatePool(iniCtx,logger);	// Null if not configured in standalone.xml
-		} catch (javax.naming.NameNotFoundException je) {
-			logger.debug("Factory naming error "+je);
-		} catch (Exception e) {
-			logger.error("Activemq factory "+e);
-		};
 	}
 
     public void setMessageDrivenContext(MessageDrivenContext ctx)
@@ -84,24 +71,7 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
     
     public void ejbCreate()
     {
-    	// Check for pooled connection factory created directly with ActiveMQ above or
-    	// get a pool defined in the standalone.xml.
-        try {
-            // Create connection for replies and forwards
-            InitialContext iniCtx = new InitialContext();
-
-            if (qcf==null) {
-            	// Use an application server defined ActiveMQ connection pool using a JNDI name from a system property
-				qcf = ManagedPool.getPool(iniCtx,logger);
-            }
-            
-	       	logger.info("Started");
-        }
-        catch (javax.naming.NameNotFoundException e) {
-        	logger.error("Init Error: "+e);
-        } catch (Exception e) {
-            throw new EJBException("Init Exception ", e);
-        }
+    	logger.info("Started");
     }
 
     public void ejbRemove()
@@ -116,11 +86,6 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
     {
         logger.trace("OriginatorRequest.onMessage, this="+hashCode());
         
-    	if (qcf==null) {
-    		logger.error("Not initialised for onMessage (missing response template or connection factory)");
-    		ctx.setRollbackOnly();
-    	}
-    	else
         try {
         	String status="";
         	String reason="";
@@ -215,7 +180,13 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
         	if (diff>SEVENSECS) {
         		status="RJCT";
         		reason="AB05";
-        	} 
+        	}
+
+        	// Update deliver stats - logged by timer task
+        	recvCount.incrementAndGet();
+        	totDeliveryTime.addAndGet(diff);
+        	if (diff<minDeliveryTime||minDeliveryTime==0) minDeliveryTime=diff;
+           	if (diff>maxDeliveryTime) maxDeliveryTime=diff;      	
 
            	// Liquidity reservation and check
         	if (status.isEmpty()) {
@@ -228,59 +199,31 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
         	// If not rejected start timer
         	if (status.equals("")){
                 //dbSessionBean.insertTimer(txid,origTime,debtorBIC,tm.getText());
-    	        QueueConnection conn = qcf.createQueueConnection();
-    	        conn.start();
-    	        
-       			QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
-    			Queue timeoutDest;
+
+    			String timeoutDest;
     			try {
-    				timeoutDest=(Queue)ic.lookup("CSMTimeoutQueue"); // Lookup JNDI name
+    				timeoutDest=(String)ic.lookup("CSMTimeoutQueue"); // Lookup JNDI name
     			} catch (NamingException e) {
-    				timeoutDest=session.createQueue("instantpayments_csm_timeout");	// Use timer MDB default queue name 
+    				timeoutDest="instantpayments_csm_timeout";	// Use timer MDB default queue name 
     			}
-        		QueueSender sender = session.createSender(timeoutDest);
-                TextMessage sendmsg=session.createTextMessage(tm.getText());
-                sendmsg.setStringProperty("TXID",txid);
-                sendmsg.setStringProperty("DEBTORBIC",debtorBIC);
-                sendmsg.setLongProperty(ScheduledMessage.AMQ_SCHEDULED_DELAY, SEVENSECS);	//	Activemq
-                sendmsg.setLongProperty("_AMQ_SCHED_DELIVERY", System.currentTimeMillis() + SEVENSECS);	//Artemis
-            	sender.send(sendmsg);
-            	sender.close();
-    			session.close();
-    			conn.close();	// Return connection to the pool
+                MessageUtils.sendMessage(tm.getText(),timeoutDest,"ACCP",debtorBIC,txid);
         	}
             // Get a pooled connection and forward to beneficiary or reject to originator
-            QueueConnection conn = qcf.createQueueConnection();
-            conn.start();
-            QueueSession session = conn.createQueueSession(false,
-                        QueueSession.AUTO_ACKNOWLEDGE);
-           
+
+          
             if (status.equals("")) {
-            	Queue beneficiaryDest = lookupQueue(ic,beneficiaryQueueName);
-            	if (beneficiaryDest==null)
-            		beneficiaryDest=session.createQueue(beneficiaryQueueName);
-            	QueueSender sender = session.createSender(beneficiaryDest);
-            	msg.setJMSType("ACCP"); // Allows for broker to use message selector
-            	sender.send(msg);
-            	sender.close();
+            	MessageUtils.sendMessage(tm.getText(),beneficiaryQueueName,"ACCP");
             	
                	dbSessionBean.txStatusUpdate(txid,status,reason,origTime,value,CSMDBSessionBean.requestRecordType);
             } else {
             	// Reject to originator
-            	Queue responseDest = lookupQueue(ic,originatorQueueName);
-            	if (responseDest==null)
-            		responseDest=session.createQueue(originatorQueueName);
-            	QueueSender sender = session.createSender(responseDest);
-            	
+           	
             	Document rejectdoc=createReject(msgdoc, reason);
-
                 String rejectText=XMLutils.documentToString(rejectdoc);
-                TextMessage sendmsg = session.createTextMessage(rejectText);
-            	sendmsg.setJMSType("RJCT"); // Allows for broker to use message selector
-            	sender.send(sendmsg);
-            	sender.close();
+                
+                String msgID=MessageUtils.sendMessage(rejectText,originatorQueueName,"RJCT");
             	
-            	dbSessionBean.txInsert(sendmsg.getJMSMessageID(),txid,CSMDBSessionBean.responseRecordType,rejectText);
+            	dbSessionBean.txInsert(msgID,txid,CSMDBSessionBean.responseRecordType,rejectText);
             	if (dbSessionBean.lastException==null) {
             		dbSessionBean.txStatusUpdate(txid,status,reason,origTime,value,CSMDBSessionBean.responseRecordType);
             	}
@@ -289,8 +232,6 @@ public class CSMOriginatorBean extends MessageUtils implements MessageDrivenBean
             		return;
             	}
             }
-            session.close();
-            conn.close();	// Return connection to the pool
                       
         } catch(JMSException e) {
             throw new EJBException(e);

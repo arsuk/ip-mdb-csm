@@ -8,9 +8,13 @@ ip-mdb-client-demo can be used to interact with the equensWorldline test environ
 infrastructure and user registratios before attempting to use new software. The ip-mdb-csm can be used to simulate
 the CSM if there is no connection to the equensWorldline test environment available for testing yet. 
 
-The ip-mdb-csm consists of message driven beans that simulate the CSM business processes. These are deployed
-within an instance of Wildfly. The queue names and related functionality supported are IPOriginatorBean and
-IPBeneficiaryBean. These applications deal with a pacs.008 payment request and the resulting pacs.002 response.
+Example standalome.xml files are included showing how use the war file wuth Wildfly/JBoss in a standalone mode 
+in-vm JMS messaging (myfull) or with external ActiveMQ (amq) or with external ActiveMQ Artemis (artemis) and also
+varuiations to use a an external DB data source (h2).
+
+The ip-mdb-csm simulation consists of message driven beans that simulate the CSM business processes. These are
+deployed within an instance of Wildfly. The queue names and related functionality supported are IPOriginatorBean
+and IPBeneficiaryBean. These applications deal with a pacs.008 payment request and the resulting pacs.002 response.
 The beans listen to queues that are defined in the ip-mdb-csm-x.x.war file ejb-jar.xml file.
 The ActiveMQ connections are defined in the Wildfly or JBoss standalone-amq.xml configuration file.
 

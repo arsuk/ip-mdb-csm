@@ -14,19 +14,13 @@ import javax.ejb.MessageDrivenContext;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
+
 import javax.jms.TextMessage;
-import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Hashtable;
 import java.util.TimeZone;
 
 /**
@@ -48,7 +42,6 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
 	private static final Logger logger = LoggerFactory.getLogger(CSMBeneficiaryBean.class);
 
     private MessageDrivenContext ctx = null;
-    private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
     
 	private String defaultTemplate="pacs.002.xml";
     
@@ -62,17 +55,7 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
 	CSMDBSessionBean dbSessionBean;
     
 	public CSMBeneficiaryBean() {
-		
-		// Check to see if a private pool is defined (if this is not the case 'null' we will look for the named Wildfly managed pool)
-		try {
-			InitialContext iniCtx = new InitialContext(); 				
 
-			qcf=PrivatePool.createPrivatePool(iniCtx,logger);	// Null if not configured in standalone.xml
-		} catch (javax.naming.NameNotFoundException je) {
-			logger.debug("Factory naming error "+je);
-		} catch (Exception e) {
-			logger.error("Activemq factory "+e);
-		};
 	}
 
     public void setMessageDrivenContext(MessageDrivenContext ctx)
@@ -86,20 +69,11 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
     	// Check for pooled connection factory created directly with ActiveMQ above or
     	// get a pool defined in the standalone.xml.
         try {
-            // Create connection for replies and forwards
-            InitialContext iniCtx = new InitialContext();
-
-            if (qcf==null) {
-				qcf = ManagedPool.getPool(iniCtx,logger);
-            }
 
             // Get XML template for creating messages from a file - real application code would have a better way of doing this
             docText=XMLutils.getTemplate(defaultTemplate);
             
 	       	logger.info("Started");
-        }
-        catch (javax.naming.NameNotFoundException e) {
-        	logger.error("Init Error: "+e);
         } catch (Exception e) {
             throw new EJBException("Init Exception ", e);
         }
@@ -149,8 +123,6 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
            	if (reason==null) reason="";
            	else reason=reason.trim();
            	String confirmationReason="";
-           	
-            Context ic = new InitialContext();
 
             String confirmationQueueName=null;            
             String beneficiaryName = lookupBankName(creditorBIC);
@@ -201,15 +173,6 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
             // Update message ID time so we can forward the message
             XMLutils.setElementValue(doc,"MsgId",hashCode()+"-"+System.nanoTime());
 
-            // Get a pooled connection
-            QueueConnection conn = qcf.createQueueConnection();
-            conn.start();
-            QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
-        	Queue responseDest = lookupQueue(ic,responseQueueName);
-        	if (responseDest==null)
-        		responseDest=session.createQueue(responseQueueName);
-        	QueueSender senderResp = session.createSender(responseDest);
-
             Date origTime = null;
             try {
             	dateTimeFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -250,35 +213,23 @@ public class CSMBeneficiaryBean extends MessageUtils implements MessageDrivenBea
         			logger.warn("Could not update liqidity {} for transaction {} with value {}",debtorBIC,txid,originalStatus.value);
         		}
         	}
-            TextMessage sendmsg;
+            String sendmsg=XMLutils.documentToString(doc);
             if (status.equals("ACCP")) {
             	// Forward to originator
-            	sendmsg = session.createTextMessage(XMLutils.documentToString(doc));
-                sendmsg.setJMSType(status); // Allows for broker to use message selector
-                senderResp.send(sendmsg);
-                senderResp.close();
+                MessageUtils.sendMessage(sendmsg,responseQueueName,status);
             } else if (!confirmationReason.isEmpty()) {
             	// No forward to originator - create confirmation reject
-               	sendmsg = session.createTextMessage(XMLutils.documentToString(createReject(doc, confirmationReason)));
+               	sendmsg = XMLutils.documentToString(createReject(doc, confirmationReason));
             } else {
             	// Send reject to originator
-            	sendmsg = session.createTextMessage(XMLutils.documentToString(createReject(doc, reason)));
-                sendmsg.setJMSType(status); // Allows for broker to use message selector
-                senderResp.send(sendmsg);
-                senderResp.close();
+            	sendmsg = XMLutils.documentToString(createReject(doc, reason));
+            	MessageUtils.sendMessage(sendmsg,responseQueueName,status);
         	}
             
         	// Send beneficiary confirmation if ACCP or or confirmation reject due to timeout or system error.  
             if (status.equals("ACCP") || !confirmationReason.isEmpty()) {
-            	Queue confirmationDest = lookupQueue(ic,confirmationQueueName);
-            	if (confirmationDest==null)
-            		confirmationDest=session.createQueue(confirmationQueueName);
-            	QueueSender senderConf=session.createSender(confirmationDest);
-                senderConf.send(sendmsg);
-                senderConf.close();
+            	MessageUtils.sendMessage(sendmsg,confirmationQueueName,status);
             }
-            session.close();
-            conn.close();	// Return connection to the pool
 
             if (!confirmationReason.isEmpty()) reason=confirmationReason;	// Log new reason - original reason in message
            	logger.trace("TX status {} {} {}",txid,status,reason);

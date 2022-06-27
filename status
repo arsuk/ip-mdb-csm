@@ -1,0 +1,7 @@
+#!/bin/bash 
+# Display BIC liquidity and last echo times (from demo / client system)
+while [  1 ]; do
+    curl  http://localhost:8080/ip-csm-1.0/status
+    sleep 10
+done
+

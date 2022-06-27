@@ -569,7 +569,7 @@ public class CSMDBSessionBean  {
 				st = con.createStatement();
 				String sql;
 				// Truncate or delete from CSMTXTABLE
-				if (id.equals("%")) {
+				if (id.equals("*")) {
 					sql = "TRUNCATE TABLE CSMTXTABLE";
 					data = "Truncated "+txCount();
 					st.executeUpdate(sql);

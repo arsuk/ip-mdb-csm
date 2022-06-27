@@ -11,15 +11,10 @@ import javax.ejb.EJBException;
 import javax.ejb.MessageDriven;
 import javax.ejb.MessageDrivenBean;
 import javax.ejb.MessageDrivenContext;
-import javax.ejb.Timeout;
 import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageListener;
 import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
 import javax.jms.TextMessage;
 import javax.naming.Context;
 import javax.naming.InitialContext;
@@ -28,8 +23,6 @@ import javax.naming.NamingException;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Hashtable;
-import java.util.TimeZone;
 
 /** 
  * Timer task creating echo requests<br/>
@@ -48,7 +41,6 @@ public class CSMTimoutMDB extends MessageUtils implements MessageDrivenBean, Mes
 	private static final Logger logger = LoggerFactory.getLogger(CSMTimoutMDB.class);
 
     private MessageDrivenContext ctx = null;
-    private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
     
     private static int timeoutCount=0;
     
@@ -59,16 +51,6 @@ public class CSMTimoutMDB extends MessageUtils implements MessageDrivenBean, Mes
     
 	public CSMTimoutMDB() {
 		
-		// Check to see if a private pool is defined (if this is not the case 'null' we will look for the named Wildfly managed pool)
-		try {
-			InitialContext iniCtx = new InitialContext(); 				
-
-			qcf=PrivatePool.createPrivatePool(iniCtx,logger);	// Null if not configured in standalone.xml
-		} catch (javax.naming.NameNotFoundException je) {
-			logger.debug("Factory naming error "+je);
-		} catch (Exception e) {
-			logger.error("Activemq factory "+e);
-		};
 	}
 
     public void setMessageDrivenContext(MessageDrivenContext ctx)
@@ -79,23 +61,8 @@ public class CSMTimoutMDB extends MessageUtils implements MessageDrivenBean, Mes
     
     public void ejbCreate()
     {
-    	// Check for pooled connection factory created directly with ActiveMQ above or
-    	// get a pool defined in the standalone.xml.
-        try {
-            // Create connection for replies and forwards
-            InitialContext iniCtx = new InitialContext();
-
-            if (qcf==null) {
-				qcf = ManagedPool.getPool(iniCtx,logger);
-            }
-            
-	       	logger.info("Started");
-        }
-        catch (javax.naming.NameNotFoundException e) {
-        	logger.error("Init Error: "+e);
-        } catch (Exception e) {
-            throw new EJBException("Init Exception ", e);
-        }
+           
+       	logger.info("Started");
     }
 
     public void ejbRemove()
@@ -168,12 +135,6 @@ public class CSMTimoutMDB extends MessageUtils implements MessageDrivenBean, Mes
         		}
             	// Update the status codes to show it timed out
             	dbSessionBean.txStatusUpdate(txid,status,reason,new Date(),value,CSMDBSessionBean.responseRecordType);
-
-            	// Get connection from pool
-		        QueueConnection conn = qcf.createQueueConnection();
-		        conn.start();
-				
-	    		QueueSession session = conn.createQueueSession(false,QueueSession.AUTO_ACKNOWLEDGE);
 	
 	            String originatorName = lookupBankName(debtorbic);
 	            if (originatorName==null) {
@@ -181,18 +142,7 @@ public class CSMTimoutMDB extends MessageUtils implements MessageDrivenBean, Mes
 	            	return;
 	            }
 	            String responseQueueName="instantpayments_"+originatorName+"_originator_payment_response";
-	        	Queue responseDest = lookupQueue(ic,responseQueueName);
-	        	if (responseDest==null)
-	        		responseDest=session.createQueue(responseQueueName);
-
-	           	QueueSender sender = session.createSender(responseDest);
-
-	           	TextMessage sendmsg = session.createTextMessage(respText);
-	   			sender.send(sendmsg);
-	   			
-	   			sender.close();
-	   			session.close();
-				conn.close();	// Return connection to the pool
+	   			MessageUtils.sendMessage(respText,responseQueueName);
 				
 				timeoutCount++;
             }

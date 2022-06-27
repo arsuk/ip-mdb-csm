@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 public class PrivatePool {
 
 	static private PooledConnectionFactory privatePooledConnectionFactory=null;
+	
+	static boolean firstTime=true;
 
 	// Check too see if there is a separate ActiveMQ host str (if not the Wildfly pool will be used).
 	// Get the data source (broker) host name from a system property "ActiveMQhostStr" or 
@@ -36,7 +38,7 @@ public class PrivatePool {
 		// If the host name exists and we have not already created the statically defined pool create the pool
 		if (hostStr!=null && privatePooledConnectionFactory==null) {
 
-    		logger.info("Using: {}",hostStr);
+    		if (firstTime) logger.info("Using: {}",hostStr);
     		ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory(hostStr);
 
     		String user=System.getProperty("ActiveMQuser");
@@ -45,10 +47,11 @@ public class PrivatePool {
     			user=(String)iniCtx.lookup("/global/ActiveMQuser");
     		} catch (Exception e){};
     		if (user!=null) {
-        		logger.info("Using user name: {}",user);
+    			if (firstTime) logger.info("Using user name: {}",user);
     			factory.setUserName(user);
     		}
-
+	    	firstTime=false;
+	    	
     		String password=System.getProperty("ActiveMQpassword");
     		if (password==null)
 			try {

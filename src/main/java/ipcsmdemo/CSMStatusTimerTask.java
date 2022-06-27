@@ -3,17 +3,9 @@ package ipcsmdemo;
 import java.io.IOException;
 
 import javax.ejb.*;
-import javax.jms.JMSException;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
 import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
-import javax.jms.TextMessage;
-import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-import org.apache.activemq.ScheduledMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,35 +23,37 @@ public class CSMStatusTimerTask {
 	@EJB
     CSMDBSessionBean dbSessionBean;
 
-    private QueueConnectionFactory qcf;	// To get outgoing connections for sending messages
-
     public CSMStatusTimerTask()
     {
-    	// Check for pooled connection factory created directly with ActiveMQ above or
-    	// get a pool defined in the standalone.xml.
-        try {
-            // Create connection for replies and forwards
-            InitialContext iniCtx = new InitialContext();
 
-            if (qcf==null) {
-            	// Use an application server defined ActiveMQ connection pool using a JNDI name from a system property
-				qcf = ManagedPool.getPool(iniCtx,logger);
-            }
+    	logger.info("Started");
 
-	       	logger.info("Started");
-        }
-        catch (javax.naming.NameNotFoundException e) {
-        	logger.error("Init Error: "+e);
-        } catch (Exception e) {
-            throw new EJBException("Init Exception ", e);
-        }
     }
+ 
+    static int statsCount=0;
+    static int oldRecvCount=0;
     
     @Schedule(hour="*", minute="*", second="*/1", persistent=false)
     public void logCountsJob() throws IOException, NamingException {
     	
     	// Update liquidity status       
     	dbSessionBean.saveLiquidityStatus();
+    	
+    	// Log originator delivery stats every 10 timer increments
+    	if (++statsCount>9 && oldRecvCount<CSMOriginatorBean.recvCount.get()) {
+    		statsCount=0;
+    		int totRecvCount=CSMOriginatorBean.recvCount.get();
+    		int recvCount=totRecvCount-oldRecvCount;
+    		oldRecvCount=totRecvCount;
+    		long minDeliveryTime=CSMOriginatorBean.minDeliveryTime;
+    		long maxDeliveryTime=CSMOriginatorBean.maxDeliveryTime;
+    		long totDeliveryTime=CSMOriginatorBean.totDeliveryTime.get();
+    		logger.info("Receive count "+recvCount+" delivery time min "+minDeliveryTime+" max "+
+    				maxDeliveryTime+" avg "+totDeliveryTime/recvCount);
+    		CSMOriginatorBean.minDeliveryTime=0L;
+    		CSMOriginatorBean.maxDeliveryTime=0L;
+    		CSMOriginatorBean.totDeliveryTime.set(0);
+    	}  	
 
     }
 }
